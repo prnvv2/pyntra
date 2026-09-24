@@ -1279,20 +1279,20 @@ function buildWebshellTimelineItemFromDetail(detail) {
  if (eventType === 'iteration') {
  title = ap + ((typeof window.t === 'function') ? window.t('chat.iterationRound', { n: data.iteration || 1 }) : (' ' + (data.iteration || 1) + ' '));
  } else if (eventType === 'thinking') {
- title = ap + '🤔 ' + ((typeof window.t === 'function') ? window.t('chat.aiThinking') : 'AI thinking');
+ title = ap + ((typeof window.t === 'function') ? window.t('chat.aiThinking') : 'AI thinking');
  } else if (eventType === 'tool_calls_detected') {
- title = ap + '🔧 ' + ((typeof window.t === 'function') ? window.t('chat.toolCallsDetected', { count: data.count || 0 }) : (' ' + (data.count || 0) + ' toolcall'));
+ title = ap + ((typeof window.t === 'function') ? window.t('chat.toolCallsDetected', { count: data.count || 0 }) : (' ' + (data.count || 0) + ' toolcall'));
  } else if (eventType === 'tool_call') {
  var tn = data.toolName || ((typeof window.t === 'function') ? window.t('chat.unknownTool') : 'Unknown tool');
  var idx = data.index || 0;
  var total = data.total || 0;
- title = ap + '🔧 ' + ((typeof window.t === 'function') ? window.t('chat.callTool', { name: tn, index: idx, total: total }) : ('call: ' + tn + (total ? ' (' + idx + '/' + total + ')' : '')));
+ title = ap + ((typeof window.t === 'function') ? window.t('chat.callTool', { name: tn, index: idx, total: total }) : ('call: ' + tn + (total ? ' (' + idx + '/' + total + ')' : '')));
  } else if (eventType === 'tool_result') {
  var success = data.success !== false;
  var tname = data.toolName || 'tool';
- title = ap + (success ? '✅ ' : '❌ ') + ((typeof window.t === 'function') ? (success ? window.t('chat.toolExecComplete', { name: tname }) : window.t('chat.toolExecFailed', { name: tname })) : (tname + (success ? ' completed' : ' failed')));
+ title = ap + (success ? '' : '') + ((typeof window.t === 'function') ? (success ? window.t('chat.toolExecComplete', { name: tname }) : window.t('chat.toolExecFailed', { name: tname })) : (tname + (success ? ' completed' : ' failed')));
  } else if (eventType === 'eino_agent_reply') {
- title = ap + '💬 ' + ((typeof window.t === 'function') ? window.t('chat.einoAgentReplyTitle') : 'Sub-agent reply');
+ title = ap + ((typeof window.t === 'function') ? window.t('chat.einoAgentReplyTitle') : 'Sub-agent reply');
  } else if (eventType === 'progress') {
  title = (typeof window.translateProgressMessage === 'function') ? window.translateProgressMessage(detail.message || '') : (detail.message || '');
  }
@@ -1818,7 +1818,7 @@ function selectWebshell(id, stateReady) {
  var active = p.id === state.activeProfileId;
  html += '<div class="webshell-db-profile-tab' + (active ? ' active' : '') + '" data-id="' + escapeHtml(p.id) + '">' +
  '<button type="button" class="webshell-db-profile-main" data-action="switch" data-id="' + escapeHtml(p.id) + '">' + escapeHtml(p.name || 'DB') + '</button>' +
- '<button type="button" class="webshell-db-profile-menu" data-action="edit" data-id="' + escapeHtml(p.id) + '" title="' + escapeHtml(wsT('webshell.editConnection') || 'Edit') + '">⚙</button>' +
+ '<button type="button" class="webshell-db-profile-menu" data-action="edit" data-id="' + escapeHtml(p.id) + '" title="' + escapeHtml(wsT('webshell.editConnection') || 'Edit') + '">' + (typeof window.pyIcon === 'function' ? window.pyIcon('settings', { size: 12 }) : '') + '</button>' +
  '<button type="button" class="webshell-db-profile-menu" data-action="delete" data-id="' + escapeHtml(p.id) + '" title="' + escapeHtml(wsT('webshell.dbDeleteProfile') || 'Delete connection') + '">×</button>' +
  '</div>';
  });
@@ -1888,7 +1888,7 @@ function selectWebshell(id, stateReady) {
  var tableNames = Object.keys(tables).sort(function (a, b) { return a.localeCompare(b); });
  var isActive = selectedDb && selectedDb === dbName;
  html += '<details class="webshell-db-group"' + (isActive ? ' open' : '') + '>';
- html += '<summary class="webshell-db-group-title" data-db="' + escapeHtml(dbName) + '" title="' + escapeHtml(dbName) + '"><span class="webshell-db-icon">🗄</span><span class="webshell-db-label">' + escapeHtml(dbName) + '</span><span class="webshell-db-count">' + tableNames.length + '</span></summary>';
+ html += '<summary class="webshell-db-group-title" data-db="' + escapeHtml(dbName) + '" title="' + escapeHtml(dbName) + '"><span class="webshell-db-icon">' + (typeof window.pyIcon === 'function' ? window.pyIcon('database', { size: 14 }) : '') + '</span><span class="webshell-db-label">' + escapeHtml(dbName) + '</span><span class="webshell-db-count">' + tableNames.length + '</span></summary>';
  html += '<div class="webshell-db-group-items">';
  tableNames.forEach(function (tableName) {
  var columns = Array.isArray(tables[tableName]) ? tables[tableName] : [];
@@ -1896,11 +1896,11 @@ function selectWebshell(id, stateReady) {
  var tableKey = dbName + '::' + tableName;
  var tableOpen = !!openTableKeys[tableKey];
  html += '<details class="webshell-db-table-node" data-db="' + escapeHtml(dbName) + '" data-table="' + escapeHtml(tableName) + '" data-columns-loaded="' + (columns.length ? '1' : '0') + '"' + (tableOpen ? ' open' : '') + '>';
- html += '<summary class="webshell-db-table-item" data-db="' + escapeHtml(dbName) + '" data-table="' + escapeHtml(tableName) + '" title="' + escapeHtml(tableName) + '"><span class="webshell-db-icon">📄</span><span class="webshell-db-label">' + escapeHtml(tableName) + '</span><span class="webshell-db-count">' + escapeHtml(columnCountText) + '</span></summary>';
+ html += '<summary class="webshell-db-table-item" data-db="' + escapeHtml(dbName) + '" data-table="' + escapeHtml(tableName) + '" title="' + escapeHtml(tableName) + '"><span class="webshell-db-icon">' + (typeof window.pyIcon === 'function' ? window.pyIcon('table-2', { size: 14 }) : '') + '</span><span class="webshell-db-label">' + escapeHtml(tableName) + '</span><span class="webshell-db-count">' + escapeHtml(columnCountText) + '</span></summary>';
  if (columns.length) {
  html += '<div class="webshell-db-column-list">';
  columns.forEach(function (columnName) {
- html += '<button type="button" class="webshell-db-column-item" data-db="' + escapeHtml(dbName) + '" data-table="' + escapeHtml(tableName) + '" data-column="' + escapeHtml(columnName) + '" title="' + escapeHtml(columnName) + '"><span class="webshell-db-icon">🧱</span><span class="webshell-db-label">' + escapeHtml(columnName) + '</span></button>';
+ html += '<button type="button" class="webshell-db-column-item" data-db="' + escapeHtml(dbName) + '" data-table="' + escapeHtml(tableName) + '" data-column="' + escapeHtml(columnName) + '" title="' + escapeHtml(columnName) + '"><span class="webshell-db-icon">' + (typeof window.pyIcon === 'function' ? window.pyIcon('columns-3', { size: 12 }) : '') + '</span><span class="webshell-db-label">' + escapeHtml(columnName) + '</span></button>';
  });
  html += '</div>';
  } else {
@@ -2452,13 +2452,13 @@ function runWebshellAiSend(conn, inputEl, sendBtn, messagesContainer) {
  } else if (eventData.type === 'error' && eventData.message) {
  streamingTypingId += 1;
  var errLabel = (typeof window.t === 'function') ? window.t('chat.error') : 'Error';
- appendTimelineItem('error', '❌ ' + errLabel, eventData.message, eventData.data);
+ appendTimelineItem('error', errLabel, eventData.message, eventData.data);
  renderWebshellAiErrorMessage(assistantDiv, errLabel + ': ' + eventData.message);
  } else if (eventData.type === 'progress' && eventData.message) {
  var progressMsg = (typeof window.translateProgressMessage === 'function')
  ? window.translateProgressMessage(eventData.message)
  : eventData.message;
- appendTimelineItem('progress', '🔍 ' + progressMsg, '', eventData.data);
+ appendTimelineItem('progress', progressMsg, '', eventData.data);
  if (!streamingTarget) assistantDiv.textContent = '…';
  } else if (eventData.type === 'iteration') {
  var iterN = (eventData.data && eventData.data.iteration) || 0;
@@ -2469,19 +2469,19 @@ function runWebshellAiSend(conn, inputEl, sendBtn, messagesContainer) {
  if (iterMessage && typeof window.translateProgressMessage === 'function') {
  iterMessage = window.translateProgressMessage(iterMessage);
  }
- appendTimelineItem('iteration', '🔍 ' + iterTitle, iterMessage, eventData.data);
+ appendTimelineItem('iteration', iterTitle, iterMessage, eventData.data);
  if (!streamingTarget) assistantDiv.textContent = '…';
  } else if (eventData.type === 'thinking' && eventData.message) {
  var thinkLabel = (typeof window.t === 'function') ? window.t('chat.aiThinking') : 'AI thinking';
  var thinkD = eventData.data || {};
- appendTimelineItem('thinking', webshellAgentPx(thinkD) + '🤔 ' + thinkLabel, eventData.message, thinkD);
+ appendTimelineItem('thinking', webshellAgentPx(thinkD) + thinkLabel, eventData.message, thinkD);
  if (!streamingTarget) assistantDiv.textContent = '…';
  } else if (eventData.type === 'tool_calls_detected' && eventData.data) {
  var count = eventData.data.count || 0;
  var detectedLabel = (typeof window.t === 'function')
  ? window.t('chat.toolCallsDetected', { count: count })
  : (' ' + count + ' toolcall');
- appendTimelineItem('tool_calls_detected', webshellAgentPx(eventData.data) + '🔧 ' + detectedLabel, eventData.message || '', eventData.data);
+ appendTimelineItem('tool_calls_detected', webshellAgentPx(eventData.data) + detectedLabel, eventData.message || '', eventData.data);
  if (!streamingTarget) assistantDiv.textContent = '…';
  } else if (eventData.type === 'tool_call' && eventData.data) {
  var d = eventData.data;
@@ -2491,7 +2491,7 @@ function runWebshellAiSend(conn, inputEl, sendBtn, messagesContainer) {
  var callTitle = (typeof window.t === 'function')
  ? window.t('chat.callTool', { name: tn, index: idx, total: total })
  : ('call: ' + tn + (total ? ' (' + idx + '/' + total + ')' : ''));
- var title = webshellAgentPx(d) + '🔧 ' + callTitle;
+ var title = webshellAgentPx(d) + callTitle;
  appendTimelineItem('tool_call', title, eventData.message || '', eventData.data);
  if (!streamingTarget) assistantDiv.textContent = '…';
  } else if (eventData.type === 'tool_result' && eventData.data) {
@@ -2501,7 +2501,7 @@ function runWebshellAiSend(conn, inputEl, sendBtn, messagesContainer) {
  var titleText = (typeof window.t === 'function')
  ? (success ? window.t('chat.toolExecComplete', { name: tname }) : window.t('chat.toolExecFailed', { name: tname }))
  : (tname + (success ? ' completed' : ' failed'));
- var title = webshellAgentPx(dr) + (success ? '✅ ' : '❌ ') + titleText;
+ var title = webshellAgentPx(dr) + (success ? '' : '') + titleText;
  var sub = eventData.message || (dr.result ? String(dr.result).slice(0, 300) : '');
  appendTimelineItem('tool_result', title, sub, eventData.data);
  if (!streamingTarget) assistantDiv.textContent = '…';
@@ -2511,7 +2511,7 @@ function runWebshellAiSend(conn, inputEl, sendBtn, messagesContainer) {
  var runTS = (typeof window.t === 'function') ? window.t('timeline.running') : 'Running...';
  var itemS = document.createElement('div');
  itemS.className = 'webshell-ai-timeline-item webshell-ai-timeline-eino_agent_reply';
- itemS.innerHTML = '<span class="webshell-ai-timeline-title">' + escapeHtml(webshellAgentPx(rdS) + '💬 ' + repTS + ' · ' + runTS) + '</span>';
+ itemS.innerHTML = '<span class="webshell-ai-timeline-title">' + escapeHtml(webshellAgentPx(rdS) + repTS + ' · ' + runTS) + '</span>';
  timelineContainer.appendChild(itemS);
  timelineContainer.classList.add('has-items');
  einoSubReplyStreams.set(rdS.streamId, { el: itemS, buf: '' });
@@ -2537,7 +2537,7 @@ function runWebshellAiSend(conn, inputEl, sendBtn, messagesContainer) {
  stE.buf = fullE;
  var repTE = (typeof window.t === 'function') ? window.t('chat.einoAgentReplyTitle') : 'Sub-agent reply';
  var titE = stE.el.querySelector('.webshell-ai-timeline-title');
- if (titE) titE.textContent = webshellAgentPx(eventData.data) + '💬 ' + repTE;
+ if (titE) titE.textContent = webshellAgentPx(eventData.data) + repTE;
  var preE = stE.el.querySelector('.webshell-eino-reply-stream-body');
  if (!preE) {
  preE = document.createElement('pre');
@@ -2552,7 +2552,7 @@ function runWebshellAiSend(conn, inputEl, sendBtn, messagesContainer) {
  } else if (eventData.type === 'eino_agent_reply' && eventData.message) {
  var rd = eventData.data || {};
  var replyT = (typeof window.t === 'function') ? window.t('chat.einoAgentReplyTitle') : 'Sub-agent reply';
- appendTimelineItem('eino_agent_reply', webshellAgentPx(rd) + '💬 ' + replyT, eventData.message, rd);
+ appendTimelineItem('eino_agent_reply', webshellAgentPx(rd) + replyT, eventData.message, rd);
  if (!streamingTarget) assistantDiv.textContent = '…';
  }
  } catch (e) { /* ignore parse error */ }
@@ -3212,7 +3212,7 @@ function renderDirectoryTree(currentPath, items, conn) {
  var isExpanded = isDir ? (expanded[path] !== false) : false;
  var isActive = path === curr;
  var name = node.name;
- var icon = isDir ? (path === '.' ? '🗂' : '📁') : '📄';
+ var icon = (typeof window.pyIcon === 'function' ? window.pyIcon('folder', { size: 14 }) : ''); if (!isDir) icon = (typeof window.pyIcon === 'function' ? window.pyIcon('file', { size: 14 }) : ''); if (isDir && path === '.') icon = (typeof window.pyIcon === 'function' ? window.pyIcon('folder-open', { size: 14 }) : '');
  var nodeHtml =
  '<div class="webshell-tree-node" data-depth="' + depth + '">' +
  '<div class="webshell-tree-row' + (isActive ? ' active' : '') + '">' +

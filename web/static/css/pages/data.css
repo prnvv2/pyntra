@@ -1,0 +1,159 @@
+/* ============================================================================
+   Pyntra — Data screens
+   Findings (vulnerabilities), MCP monitor + execution detail, tasks & batch
+   queues, file management, knowledge retrieval logs, skills monitor.
+   ============================================================================ */
+
+/* ---- Shared: stat strip, panels, table toolbar -------------------------- */
+.dashboard-stats,
+.monitor-stats-grid,
+.knowledge-stats-bar,
+.retrieval-stats-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-3);
+}
+.stat-card,
+.monitor-stat-card,
+.knowledge-stat-item,
+.retrieval-stat-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4) var(--space-3) var(--space-5);
+  overflow: hidden;
+  background: var(--surface-1);
+  border: var(--border-width) solid var(--border-1);
+  border-radius: var(--radius-md);
+}
+.stat-card::before,
+.monitor-stat-card::before,
+.knowledge-stat-item::before,
+.retrieval-stat-item::before {
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0; left: 0;
+  width: var(--accent-bar);
+  background: var(--border-2);
+}
+.stat-card:first-child::before,
+.monitor-stat-card:first-child::before { background: var(--primary); }
+.stat-card.stat-critical::before { background: var(--sev-critical); }
+.stat-card.stat-high::before { background: var(--sev-high); }
+.stat-card.stat-medium::before { background: var(--sev-medium); }
+.stat-card.stat-low::before { background: var(--sev-low); }
+.stat-card.stat-info::before { background: var(--sev-info); }
+.stat-label,
+.monitor-stat-card h4,
+.monitor-stat-label,
+.knowledge-stat-label,
+.retrieval-stat-label {
+  overflow: hidden;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--text-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.stat-value,
+.monitor-stat-value,
+.knowledge-stat-value,
+.retrieval-stat-value {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-1);
+}
+.monitor-stat-value.is-text { font-size: var(--text-sm); font-weight: var(--weight-medium); line-height: var(--leading-normal); }
+.monitor-stat-meta { overflow: hidden; font-size: var(--text-xs); color: var(--text-3); white-space: nowrap; text-overflow: ellipsis; }
+
+.vulnerability-dashboard,
+.vulnerability-controls,
+.knowledge-controls,
+.retrieval-logs-controls { margin-bottom: var(--space-4); }
+.vulnerability-controls,
+.retrieval-logs-filters,
+.batch-queues-filters,
+.chat-files-filters {
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-1);
+  border: var(--border-width) solid var(--border-1);
+  border-radius: var(--radius-md);
+}
+.retrieval-logs-filters { margin-top: var(--space-3); }
+.filter-grow { flex: 1; max-width: 360px; }
+
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--space-10);
+  padding: var(--space-2) var(--space-4);
+  background: var(--surface-1);
+  border: var(--border-width) solid var(--border-1);
+  border-bottom: none;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+.table-toolbar + .pc-table-wrap { border-radius: 0 0 var(--radius-md) var(--radius-md); }
+.table-toolbar-count { font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--text-3); font-variant-numeric: tabular-nums; }
+.table-toolbar.has-selection { background: var(--primary-subtle); border-color: var(--primary-subtle-border); }
+.table-toolbar.has-selection .table-toolbar-count { color: var(--primary); }
+.table-toolbar-actions { display: flex; gap: var(--space-2); }
+
+/* Sticky headers inside the scrolling page */
+.pc-table-wrap { overflow: visible; }
+.pc-table thead th { top: calc(-1 * var(--space-5)); }
+.pc-table th.is-sortable { padding: 0; }
+.pc-table th .th-sort {
+  width: 100%;
+  height: var(--control-height-lg);
+  padding: 0 var(--space-3);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.pc-table th .th-sort:hover { color: var(--text-1); }
+.pc-table .cell-check { width: var(--space-9); padding-right: 0; }
+.pc-table tbody tr.is-active { background: var(--surface-active); box-shadow: inset var(--accent-bar) 0 0 var(--primary); }
+.btn-row-danger:hover:not(:disabled) { color: var(--danger); background: var(--danger-bg); }
+.pc-drawer-spacer { flex: 1; }
+
+/* ---- Findings table ------------------------------------------------------ */
+.vuln-table .cell-title { min-width: 240px; }
+.vuln-title { font-weight: var(--weight-medium); color: var(--text-1); }
+.vuln-type { margin-top: 2px; font-size: var(--text-xs); color: var(--text-3); }
+.vuln-table .cell-target { max-width: 240px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.vuln-table .cell-date { white-space: nowrap; font-size: var(--text-xs); color: var(--text-2); font-variant-numeric: tabular-nums; }
+.vuln-table .badge .sev-dot { margin-right: 2px; }
+.vuln-table .cell-actions .btn-ghost { opacity: 0.6; }
+.vuln-table tr:hover .cell-actions .btn-ghost,
+.vuln-table .cell-actions .btn-ghost:focus-visible { opacity: 1; }
+.pc-skeleton-row .pc-skeleton:nth-child(1) { width: 12%; }
+.pc-skeleton-row .pc-skeleton:nth-child(2) { width: 40%; }
+.pc-skeleton-row .pc-skeleton:nth-child(3) { width: 14%; }
+.pc-skeleton-row .pc-skeleton:nth-child(4) { width: 20%; }
+.pc-drawer .pc-dl .mono { font-family: var(--font-mono); font-size: var(--text-xs); }
+.pc-drawer .pc-code { max-height: 360px; }
+.empty-state { padding: var(--space-8); font-size: var(--text-sm); color: var(--text-3); text-align: center; }
+
+/* ---- MCP monitor ----------------------------------------------------------- */
+.monitor-sections { display: flex; flex-direction: column; gap: var(--space-4); }
+.monitor-section {
+  background: var(--surface-1);
+  border: var(--border-width) solid var(--border-1);
+  border-radius: var(--radius-md);
+}
+.monitor-section > .section-header {
+  min-height: var(--space-10);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: var(--border-width) solid var(--border-1);
+}
+.monitor-section > .section-header .section-actions label { flex-direction: row; align-items: center; gap: var(--space-2); }

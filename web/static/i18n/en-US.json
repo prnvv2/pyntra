@@ -20,7 +20,8 @@
     "copied": "Copied",
     "copyFailed": "Copy failed",
     "view": "View",
-    "actions": "Actions"
+    "actions": "Actions",
+    "more": "More actions"
   },
   "header": {
     "title": "Pyntra",
@@ -176,7 +177,7 @@
     "taskCancelled": "Task cancelled",
     "unknownTool": "Unknown tool",
     "einoAgentReplyTitle": "Sub-agent reply",
-    "einoRecoveryTitle": "🔄 Invalid tool JSON · run {{n}}/{{max}} (hint appended)",
+    "einoRecoveryTitle": "Invalid tool JSON · run {{n}}/{{max}} (hint appended)",
     "noDescription": "No description",
     "noResponseData": "No response data",
     "loading": "Loading...",
@@ -207,7 +208,8 @@
     "agentModeSingleHint": "Single-model ReAct loop for chat and tool use",
     "agentModeMultiHint": "Eino prebuilt orchestration (deep / plan_execute / supervisor) for complex tasks",
     "agentModeOrchPlanExecute": "Plan-Exec",
-    "agentModeOrchSupervisor": "Supervisor"
+    "agentModeOrchSupervisor": "Supervisor",
+    "warning": "Warning"
   },
   "progress": {
     "callingAI": "Calling AI model...",
@@ -552,7 +554,7 @@
     "enabledCount": "Enabled",
     "disabledCount": "Disabled",
     "connectedCount": "Connected",
-    "toolsCountValue": "🔧 {{count}} tools",
+    "toolsCountValue": "{{count}} tools",
     "connectionErrorLabel": "Connection error:",
     "secondsUnit": "s",
     "urlLabel": "URL",
@@ -660,7 +662,7 @@
     "saveSuccess": "Skill updated",
     "createdSuccess": "Skill created",
     "deleteConfirm": "Are you sure you want to delete skill \"{{name}}\"? This cannot be undone.",
-    "deleteConfirmWithRoles": "Are you sure you want to delete skill \"{{name}}\"?\n\n⚠️ This skill is currently bound to {{count}} role(s):\n{{roles}}\n\nAfter deletion, the system will automatically remove this skill from those roles.\n\nThis cannot be undone. Continue?",
+    "deleteConfirmWithRoles": "Are you sure you want to delete skill \"{{name}}\"?\n\nThis skill is currently bound to {{count}} role(s):\n{{roles}}\n\nAfter deletion, the system will automatically remove this skill from those roles.\n\nThis cannot be undone. Continue?",
     "deleteSuccess": "Skill deleted",
     "deleteSuccessWithRoles": "Skill deleted and automatically removed from {{count}} role(s): {{roles}}",
     "loadFailedShort": "Load failed",
@@ -688,9 +690,9 @@
     "authGetTokenDesc": "After logging in on the frontend, the Token is saved automatically. You can also get it via:",
     "authUseToken": "2. Use Token:",
     "authUseTokenDesc": "Add the Authorization header:",
-    "authTip": "💡 This page will use your logged-in Token automatically; no need to fill it manually.",
-    "tokenDetected": "✓ Token detected - You can test API endpoints directly",
-    "tokenNotDetected": "⚠ No Token detected - Please log in on the frontend first, then refresh this page. When testing, add Authorization: Bearer token in the request header",
+    "authTip": "This page will use your logged-in Token automatically; no need to fill it manually.",
+    "tokenDetected": "Token detected - You can test API endpoints directly",
+    "tokenNotDetected": "No Token detected - Please log in on the frontend first, then refresh this page. When testing, add Authorization: Bearer token in the request header",
     "sidebarGroupTitle": "API Groups",
     "allApis": "All APIs",
     "loading": "Loading...",
@@ -1534,7 +1536,7 @@
     "roleDescription": "Role description",
     "roleDescriptionPlaceholder": "Enter role description",
     "roleIcon": "Role icon",
-    "roleIconPlaceholder": "Enter emoji, e.g. 🏆",
+    "roleIconPlaceholder": "Optional short label, e.g. AS",
     "roleIconHint": "Emoji shown in role selector.",
     "userPrompt": "User prompt",
     "userPromptPlaceholder": "Appended before user message...",

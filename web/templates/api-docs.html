@@ -5,7 +5,9 @@
  <meta name="viewport" content="width=device-width, initial-scale=1.0">
  <title data-i18n="apiDocs.pageTitle">API Docs - Pyntra</title>
  <link rel="icon" type="image/png" href="/static/logo.svg">
- <link rel="stylesheet" href="/static/css/style.css">
+ <link rel="stylesheet" href="/static/css/tokens.css">
+    <link rel="stylesheet" href="/static/css/base.css">
+    <link rel="stylesheet" href="/static/css/components.css">
  <style>
  /* CSSoverflow,APIpage */
  body {
@@ -840,8 +842,8 @@
  <div class="api-docs-lang-switcher" style="position: absolute; top: 24px; right: 24px;">
  <div class="lang-switcher">
  <button type="button" class="btn-secondary lang-switcher-btn" onclick="typeof toggleLangDropdown === 'function' && toggleLangDropdown()" title="Interface language">
- <span class="lang-switcher-icon">🌐</span>
- <span id="current-lang-label">Chinese</span>
+ <span class="lang-switcher-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg></span>
+ <span id="current-lang-label">English</span>
  </button>
  <div id="lang-dropdown" class="lang-dropdown" style="display: none;">
  <div class="lang-option" data-lang="en-US" onclick="typeof onLanguageSelect === 'function' && onLanguageSelect('zh-CN')">Chinese</div>
@@ -887,11 +889,11 @@ Content-Type: application/json
  <p style="margin: 0 0 8px 0; font-weight: 500;" data-i18n="apiDocs.authUseToken">2. Use Token:</p>
  <p style="margin: 0 0 8px 0;" data-i18n="apiDocs.authUseTokenDesc">Add the Authorization header:</p>
  <pre style="background: var(--bg-primary); padding: 8px; border-radius: 4px; margin: 8px 0; overflow-x: auto; font-size: 0.8125rem;"><code>Authorization: Bearer your_token_here</code></pre>
- <p style="margin: 8px 0 0 0; font-size: 0.8125rem; color: var(--text-muted);" data-i18n="apiDocs.authTip">💡 This page will use your logged-in Token automatically; no need to fill it manually.</p>
+ <p style="margin: 8px 0 0 0; font-size: 0.8125rem; color: var(--text-muted);" data-i18n="apiDocs.authTip">This page will use your logged-in Token automatically; no need to fill it manually.</p>
  </div>
  <div id="token-status" style="display: none; background: rgba(0, 102, 255, 0.1); padding: 8px 12px; border-radius: 6px; border-left: 3px solid var(--accent-color);">
  <p style="margin: 0; font-size: 0.8125rem; color: var(--accent-color);" data-i18n="apiDocs.tokenDetected">
- <strong>✓ Token</strong> - API 
+ <strong>Token</strong> - API 
  </p>
  </div>
  </div>
@@ -934,7 +936,7 @@ Content-Type: application/json
  </div>
  </div>
  
- <script src="https://cdn.jsdelivr.net/npm/i18next@23.11.5/i18next.min.js"></script>
+ <script src="/static/vendor/i18next/i18next.min.js"></script>
  <script src="/static/js/i18n.js"></script>
  <script src="/static/js/api-docs.js"></script>
 </body>

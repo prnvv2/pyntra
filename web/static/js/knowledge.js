@@ -3,19 +3,11 @@ function _t(key, opts) {
 }
 function getKnowledgeNotEnabledHTML() {
  return `
- <div class="empty-state" style="text-align: center; padding: 40px 20px;">
- <div style="font-size: 48px; margin-bottom: 20px;">📚</div>
- <h3 data-i18n="knowledge.notEnabledTitle" style="margin-bottom: 10px; color: #666;"></h3>
- <p data-i18n="knowledge.notEnabledHint" style="color: #999; margin-bottom: 20px;"></p>
- <button data-i18n="knowledge.goToSettings" onclick="switchToSettings()" style="
- background: #007bff;
- color: white;
- border: none;
- padding: 10px 20px;
- border-radius: 5px;
- cursor: pointer;
- font-size: 14px;
- "></button>
+ <div class="pc-empty">
+ <span class="pc-empty-icon">${typeof window.pyIcon === 'function' ? window.pyIcon('book-open', { size: 20 }) : ''}</span>
+ <h3 class="pc-empty-title" data-i18n="knowledge.notEnabledTitle"></h3>
+ <p class="pc-empty-text" data-i18n="knowledge.notEnabledHint"></p>
+ <button type="button" class="btn-primary btn-small" data-i18n="knowledge.goToSettings" onclick="switchToSettings()"></button>
  </div>
  `;
 }
@@ -293,7 +285,7 @@ function renderKnowledgeItemCard(item) {
  </button>
  </div>
  </div>
- ${relativePath ? `<div class="knowledge-item-path">📁 ${escapeHtml(relativePath)}</div>` : ''}
+ ${relativePath ? `<div class="knowledge-item-path">${escapeHtml(relativePath)}</div>` : ''}
  </div>
  ${previewText ? `
  <div class="knowledge-item-card-content">
@@ -302,7 +294,7 @@ function renderKnowledgeItemCard(item) {
  ` : ''}
  <div class="knowledge-item-card-footer">
  <div class="knowledge-item-meta">
- ${displayTime ? `<span class="knowledge-item-time" title="${timeLabel}">🕒 ${displayTime}</span>` : ''}
+ ${displayTime ? `<span class="knowledge-item-time" title="${timeLabel}">${displayTime}</span>` : ''}
  ${isRecent ? '<span class="knowledge-item-badge-new"></span>' : ''}
  </div>
  </div>
@@ -393,7 +385,7 @@ async function updateIndexProgress() {
  margin-bottom: 16px;
  ">
  <div style="display: flex; align-items: center; margin-bottom: 8px;">
- <span style="font-size: 20px; margin-right: 8px;">❌</span>
+ <span style="font-size: 20px; margin-right: 8px;"></span>
  <span style="font-weight: bold; color: #c00;">buildfailed</span>
  </div>
  <div style="color: #666; font-size: 14px; margin-bottom: 12px; line-height: 1.5;">
@@ -446,15 +438,15 @@ async function updateIndexProgress() {
  progressContainer.innerHTML = `
  <div class="knowledge-index-progress">
  <div class="progress-header">
- <span class="progress-icon">🔨</span>
- <span class="progress-text">:${rebuildCurrent}/${rebuildTotal} (${rebuildProgress.toFixed(1)}%) - failed:${rebuildFailed}</span>
+ <span class="progress-icon"><span class="inline-spinner" aria-hidden="true"></span></span>
+ <span class="progress-text">Rebuilding index: ${rebuildCurrent}/${rebuildTotal} (${rebuildProgress.toFixed(1)}%) · failed: ${rebuildFailed}</span>
  </div>
  <div class="progress-bar-container">
  <div class="progress-bar" style="width: ${rebuildProgress}%"></div>
  </div>
  <div class="progress-hint">
- ${rebuildLastItemID ? `:${escapeHtml(rebuildLastItemID.substring(0, 36))}... (${rebuildLastChunks} chunks)` : '...'}
- ${rebuildStartTime ? `<br>start:${new Date(rebuildStartTime).toLocaleString()}` : ''}
+ ${rebuildLastItemID ? `Last item: ${escapeHtml(rebuildLastItemID.substring(0, 36))}... (${rebuildLastChunks} chunks)` : 'Starting...'}
+ ${rebuildStartTime ? `<br>Started: ${new Date(rebuildStartTime).toLocaleString()}` : ''}
  </div>
  </div>
  `;
@@ -467,8 +459,8 @@ async function updateIndexProgress() {
  if (isComplete) {
  progressContainer.innerHTML = `
  <div class="knowledge-index-progress-complete">
- <span class="progress-icon">✅</span>
- <span class="progress-text">buildcompleted (${indexedItems}/${totalItems})</span>
+ <span class="progress-icon">${typeof window.pyIcon === 'function' ? window.pyIcon('circle-check', { size: 16 }) : ''}</span>
+ <span class="progress-text">Index build complete (${indexedItems}/${totalItems})</span>
  </div>
  `;
  if (indexProgressInterval) {
@@ -479,13 +471,13 @@ async function updateIndexProgress() {
  progressContainer.innerHTML = `
  <div class="knowledge-index-progress">
  <div class="progress-header">
- <span class="progress-icon">🔨</span>
- <span class="progress-text">build: ${indexedItems}/${totalItems} (${progressPercent.toFixed(1)}%)</span>
+ <span class="progress-icon"><span class="inline-spinner" aria-hidden="true"></span></span>
+ <span class="progress-text">Building index: ${indexedItems}/${totalItems} (${progressPercent.toFixed(1)}%)</span>
  </div>
  <div class="progress-bar-container">
  <div class="progress-bar" style="width: ${progressPercent}%"></div>
  </div>
- <div class="progress-hint">buildcompleted,</div>
+ <div class="progress-hint">Retrieval becomes available when the build completes.</div>
  </div>
  `;
  if (!indexProgressInterval) {
@@ -506,7 +498,7 @@ async function updateIndexProgress() {
  margin-bottom: 16px;
  ">
  <div style="display: flex; align-items: center; margin-bottom: 8px;">
- <span style="font-size: 20px; margin-right: 8px;">⚠️</span>
+ <span style="font-size: 20px; margin-right: 8px;"></span>
  <span style="font-weight: bold; color: #c00;">fetchstatus</span>
  </div>
  <div style="color: #666; font-size: 14px;">
@@ -630,7 +622,7 @@ async function searchKnowledgeItems() {
  if (categoriesWithItems.length === 0) {
  container.innerHTML = `
  <div class="empty-state" style="text-align: center; padding: 40px 20px;">
- <div style="font-size: 48px; margin-bottom: 20px;">🔍</div>
+ <div style="font-size: 48px; margin-bottom: 20px;"></div>
  <h3 style="margin-bottom: 10px;">Knowledge</h3>
  <p style="color: #999;"> "<strong>${escapeHtml(searchTerm)}</strong>" noresult</p>
  <p style="color: #999; margin-top: 10px; font-size: 0.9em;">,</p>
@@ -703,13 +695,13 @@ async function rebuildKnowledgeIndex() {
  progressContainer.innerHTML = `
  <div class="knowledge-index-progress">
  <div class="progress-header">
- <span class="progress-icon">🔨</span>
+ <span class="progress-icon"><span class="inline-spinner" aria-hidden="true"></span></span>
  <span class="progress-text">: ...</span>
  </div>
  <div class="progress-bar-container">
  <div class="progress-bar" style="width: 0%"></div>
  </div>
- <div class="progress-hint">buildcompleted,</div>
+ <div class="progress-hint">Retrieval becomes available when the build completes.</div>
  </div>
  `;
  }
@@ -855,7 +847,7 @@ async function saveKnowledgeItem() {
  }
  });
  }
- showNotification(`✅ ${action}successful!"${newItemCategory}"Knowledge.`, 'success');
+ showNotification(`${action}successful!"${newItemCategory}"Knowledge.`, 'success');
  }
  await loadKnowledgeItems(categoryToShow, 1, knowledgePagination.pageSize);
  console.log('Knowledgerefreshcompleted');
@@ -864,14 +856,14 @@ async function saveKnowledgeItem() {
  if (itemsListContainer && originalContent) {
  itemsListContainer.innerHTML = originalContent;
  }
- showNotification('⚠️ Knowledgesave,refreshfailed,refreshpage', 'warning');
+ showNotification('Knowledgesave,refreshfailed,refreshpage', 'warning');
  }
  
  } catch (error) {
  console.error('saveKnowledgefailed:', error);
- showNotification('❌ saveKnowledgefailed: ' + error.message, 'error');
+ showNotification('saveKnowledgefailed: ' + error.message, 'error');
  if (typeof window.showNotification !== 'function') {
- alert('❌ saveKnowledgefailed: ' + error.message);
+ alert('saveKnowledgefailed: ' + error.message);
  }
  if (categoryInput) categoryInput.disabled = false;
  if (titleInput) titleInput.disabled = false;
@@ -947,7 +939,7 @@ async function deleteKnowledgeItem(id) {
  const errorData = await response.json().catch(() => ({}));
  throw new Error(errorData.error || 'deleteKnowledgefailed');
  }
- showNotification('✅ deletesuccessful!Knowledge.', 'success');
+ showNotification('deletesuccessful!Knowledge.', 'success');
  await loadKnowledgeCategories();
  await loadKnowledgeItems(knowledgePagination.currentCategory, knowledgePagination.currentPage, knowledgePagination.pageSize);
  
@@ -972,7 +964,7 @@ async function deleteKnowledgeItem(id) {
  }
  }
  
- showNotification('❌ deleteKnowledgefailed: ' + error.message, 'error');
+ showNotification('deleteKnowledgefailed: ' + error.message, 'error');
  }
 }
 function updateKnowledgeStatsAfterDelete() {
@@ -1110,7 +1102,7 @@ function renderRetrievalLogs(logs) {
  <div class="retrieval-log-card ${hasResults ? 'has-results' : 'no-results'}" data-index="${index}">
  <div class="retrieval-log-card-header">
  <div class="retrieval-log-icon">
- ${hasResults ? '🔍' : '⚠️'}
+ ${hasResults ? (typeof window.pyIcon === 'function' ? window.pyIcon('search', { size: 16 }) : '') : (typeof window.pyIcon === 'function' ? window.pyIcon('triangle-alert', { size: 16 }) : '')}
  </div>
  <div class="retrieval-log-main-info">
  <div class="retrieval-log-query">
@@ -1118,9 +1110,9 @@ function renderRetrievalLogs(logs) {
  </div>
  <div class="retrieval-log-meta">
  <span class="retrieval-log-time" title="${formatTime(log.createdAt)}">
- 🕒 ${timeAgo}
+ ${timeAgo}
  </span>
- ${log.riskType ? `<span class="retrieval-log-risk-type">📁 ${escapeHtml(log.riskType)}</span>` : ''}
+ ${log.riskType ? `<span class="retrieval-log-risk-type">${escapeHtml(log.riskType)}</span>` : ''}
  </div>
  </div>
  <div class="retrieval-log-result-badge ${hasResults ? 'success' : 'empty'}">
@@ -1331,7 +1323,7 @@ async function deleteRetrievalLog(id, index) {
  const errorData = await response.json().catch(() => ({}));
  throw new Error(errorData.error || 'deleteretrievallogsfailed');
  }
- showNotification('✅ deletesuccessful!retrievalrecord.', 'success');
+ showNotification('deletesuccessful!retrievalrecord.', 'success');
  if (retrievalLogsData && index >= 0 && index < retrievalLogsData.length) {
  retrievalLogsData.splice(index, 1);
  }
@@ -1484,7 +1476,7 @@ function showRetrievalLogDetailsModal(log, retrievedItems) {
  <h4 style="margin: 0; color: var(--text-primary);">${idx + 1}. ${escapeHtml(item.title || _t('retrievalLogs.untitled'))}</h4>
  <span style="font-size: 0.875rem; color: var(--text-secondary);">${escapeHtml(item.category || _t('retrievalLogs.uncategorized'))}</span>
  </div>
- ${item.filePath ? `<div style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 8px;">📁 ${escapeHtml(item.filePath)}</div>` : ''}
+ ${item.filePath ? `<div style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 8px;">${escapeHtml(item.filePath)}</div>` : ''}
  <div style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6;">
  ${escapeHtml(previewText || _t('retrievalLogs.noContentPreview'))}
  </div>
@@ -1687,95 +1679,29 @@ function showToastNotification(message, type = 'info') {
  if (!container) {
  container = document.createElement('div');
  container.id = 'toast-notification-container';
- container.style.cssText = `
- position: fixed;
- top: 20px;
- right: 20px;
- z-index: 10000;
- display: flex;
- flex-direction: column;
- gap: 12px;
- pointer-events: none;
- `;
+ container.className = 'pc-toast-region';
+ container.setAttribute('role', 'region');
+ container.setAttribute('aria-label', 'Notifications');
  document.body.appendChild(container);
  }
+ const icons = { success: 'circle-check', error: 'circle-x', info: 'info', warning: 'triangle-alert' };
+ const kind = icons[type] ? type : 'info';
+ const icon = typeof window.pyIcon === 'function' ? window.pyIcon(icons[kind], { size: 16 }) : '';
+ const closeIcon = typeof window.pyIcon === 'function' ? window.pyIcon('x', { size: 14 }) : '×';
  const toast = document.createElement('div');
- toast.className = `toast-notification toast-${type}`;
- const typeStyles = {
- success: {
- background: '#28a745',
- color: '#fff',
- icon: '✅'
- },
- error: {
- background: '#dc3545',
- color: '#fff',
- icon: '❌'
- },
- info: {
- background: '#17a2b8',
- color: '#fff',
- icon: 'ℹ️'
- },
- warning: {
- background: '#ffc107',
- color: '#000',
- icon: '⚠️'
- }
- };
- 
- const style = typeStyles[type] || typeStyles.info;
- 
- toast.style.cssText = `
- background: ${style.background};
- color: ${style.color};
- padding: 14px 20px;
- border-radius: 8px;
- box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
- min-width: 300px;
- max-width: 500px;
- pointer-events: auto;
- animation: slideInRight 0.3s ease-out;
- display: flex;
- align-items: center;
- gap: 12px;
- font-size: 0.9375rem;
- line-height: 1.5;
- word-wrap: break-word;
- `;
- 
+ toast.className = `pc-toast is-${kind} toast-notification toast-${kind}`;
+ toast.setAttribute('role', kind === 'error' ? 'alert' : 'status');
  toast.innerHTML = `
- <span style="font-size: 1.2em; flex-shrink: 0;">${style.icon}</span>
- <span style="flex: 1;">${escapeHtml(message)}</span>
- <button onclick="this.parentElement.remove()" style="
- background: transparent;
- border: none;
- color: ${style.color};
- cursor: pointer;
- font-size: 1.2em;
- padding: 0;
- margin-left: 8px;
- opacity: 0.7;
- flex-shrink: 0;
- width: 24px;
- height: 24px;
- display: flex;
- align-items: center;
- justify-content: center;
- " onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.7'">×</button>
+ <span class="pc-toast-icon">${icon}</span>
+ <span class="pc-toast-text">${escapeHtml(message)}</span>
+ <button type="button" class="pc-toast-close" aria-label="Close" onclick="this.parentElement.remove()">${closeIcon}</button>
  `;
- 
  container.appendChild(toast);
- const duration = type === 'success' ? 5000 : type === 'error' ? 7000 : 4000;
+ const duration = kind === 'success' ? 5000 : kind === 'error' ? 7000 : 4000;
  setTimeout(() => {
- if (toast.parentElement) {
- toast.style.animation = 'slideOutRight 0.3s ease-out';
- setTimeout(() => {
- if (toast.parentElement) {
- toast.remove();
- }
- }, 300);
- }
+ if (!toast.parentElement) return;
+ toast.classList.add('is-leaving');
+ setTimeout(() => { if (toast.parentElement) toast.remove(); }, 300);
  }, duration);
 }
 if (!document.getElementById('toast-notification-styles')) {

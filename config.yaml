@@ -13,7 +13,7 @@
 version: "v1.5.2"
 # Server configuration
 server:
-  host: 0.0.0.0 # Listen address, 0.0.0.0 means listen on all network interfaces
+  host: 127.0.0.1 # Listen address. Loopback only by default; set 0.0.0.0 to expose on the network (change auth.password first)
   port: 8080 # HTTP service port, accessible via browser at http://localhost:8080
 # Authentication configuration
 auth:
@@ -136,7 +136,7 @@ security:
 # MCP (Model Context Protocol) used for tool registration and invocation
 mcp:
   enabled: false # Whether to enable MCP server (http mode)
-  host: 0.0.0.0 # MCP server listen address
+  host: 127.0.0.1 # MCP server listen address (loopback by default; set auth_header_value before exposing)
   port: 8081 # MCP server port
   auth_header: "X-MCP-Token" # Authentication: request must carry this header with value matching auth_header_value to call. Leave empty for no authentication
   auth_header_value: "" # Authentication key value (used with auth_header, recommend using random string)

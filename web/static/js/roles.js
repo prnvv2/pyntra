@@ -77,20 +77,7 @@ function updateRoleSelectorDisplay() {
  }
 
  if (selectedRole) {
- let icon = selectedRole.icon || '🔵';
- if (icon && typeof icon === 'string') {
- const unicodeMatch = icon.match(/^"?\\U([0-9A-F]{8})"?$/i);
- if (unicodeMatch) {
- try {
- const codePoint = parseInt(unicodeMatch[1], 16);
- icon = String.fromCodePoint(codePoint);
- } catch (e) {
- console.warn(' icon Unicode failed:', icon, e);
- icon = '🔵';
- }
- }
- }
- roleSelectorIcon.textContent = icon;
+ roleSelectorIcon.textContent = roleMonogram(selectedRole.name);
  const isDefaultRole = selectedRole.name === '' || !selectedRole.name;
  const displayName = isDefaultRole && typeof window.t === 'function'
  ? window.t('chat.defaultRole') : (selectedRole.name || (typeof window.t === 'function' ? window.t('chat.defaultRole') : 'Default'));
@@ -98,9 +85,17 @@ function updateRoleSelectorDisplay() {
  roleSelectorText.textContent = displayName;
  } else {
  roleSelectorText.setAttribute('data-i18n-skip-text', 'false');
- roleSelectorIcon.textContent = '🔵';
+ roleSelectorIcon.textContent = roleMonogram('');
  roleSelectorText.textContent = typeof window.t === 'function' ? window.t('chat.defaultRole') : 'Default';
  }
+}
+// Professional, emoji-free role glyph: a 1–2 letter monogram from the role name.
+function roleMonogram(name) {
+ var n = (name || '').trim();
+ if (!n) return 'DF';
+ var parts = n.split(/[\s\-_]+/).filter(Boolean);
+ var s = parts.length >= 2 ? (parts[0][0] + parts[1][0]) : n.slice(0, 2);
+ return s.toUpperCase();
 }
 function renderRoleSelectionSidebar() {
  const roleList = document.getElementById('role-selection-list');
@@ -120,7 +115,7 @@ function renderRoleSelectionSidebar() {
  }
  return icon;
  }
- return '👤';
+ return '';
  }
  const sortedRoles = sortRoles(roles);
  const enabledSortedRoles = sortedRoles.filter(r => r.enabled !== false);
@@ -134,7 +129,7 @@ function renderRoleSelectionSidebar() {
  selectRole(role.name);
  closeRoleSelectionPanel(); // 
  };
- const icon = getRoleIcon(role);
+ const icon = roleMonogram(role.name);
  let description = role.description || _t('roles.noDescription');
  if (isDefaultRole && !role.description) {
  description = _t('roles.defaultRoleDescription');
@@ -146,7 +141,7 @@ function renderRoleSelectionSidebar() {
  <div class="role-selection-item-name-main">${escapeHtml(role.name)}</div>
  <div class="role-selection-item-description-main">${escapeHtml(description)}</div>
  </div>
- ${isSelected ? '<div class="role-selection-checkmark-main">✓</div>' : ''}
+ ${isSelected ? '<div class="role-selection-checkmark-main">' + (typeof window.pyIcon === 'function' ? window.pyIcon('check', { size: 14 }) : '') + '</div>' : ''}
  `;
  roleList.appendChild(roleItem);
  });
@@ -237,19 +232,7 @@ function renderRolesList() {
  const sortedRoles = sortRoles(filteredRoles);
  
  rolesList.innerHTML = sortedRoles.map(role => {
- let roleIcon = role.icon || '👤';
- if (roleIcon && typeof roleIcon === 'string') {
- const unicodeMatch = roleIcon.match(/^"?\\U([0-9A-F]{8})"?$/i);
- if (unicodeMatch) {
- try {
- const codePoint = parseInt(unicodeMatch[1], 16);
- roleIcon = String.fromCodePoint(codePoint);
- } catch (e) {
- console.warn(' icon Unicode failed:', roleIcon, e);
- roleIcon = '👤';
- }
- }
- }
+ let roleIcon = roleMonogram(role.name);
  let toolsDisplay = '';
  let toolsCount = 0;
  if (role.name === '') {
@@ -598,8 +581,8 @@ function updateRoleToolsStats() {
  const currentPageTotal = document.querySelectorAll('#role-tools-list input[type="checkbox"]').length;
  const totalTools = roleToolsPagination.total || 0;
  statsEl.innerHTML = `
- <span title="${_t('roleModal.currentPageSelectedTitle')}">✅ ${_t('roleModal.currentPageSelected', { current: currentPageEnabled, total: currentPageTotal })}</span>
- <span title="${_t('roleModal.totalSelectedTitle')}">📊 ${_t('roleModal.totalSelected', { current: totalEnabled, total: totalTools })} <em>${_t('roleModal.usingAllEnabledTools')}</em></span>
+ <span title="${_t('roleModal.currentPageSelectedTitle')}">${_t('roleModal.currentPageSelected', { current: currentPageEnabled, total: currentPageTotal })}</span>
+ <span title="${_t('roleModal.totalSelectedTitle')}">${_t('roleModal.totalSelected', { current: totalEnabled, total: totalTools })} <em>${_t('roleModal.usingAllEnabledTools')}</em></span>
  `;
  return;
  }
@@ -635,8 +618,8 @@ function updateRoleToolsStats() {
  const totalTools = roleToolsPagination.total || 0;
  
  statsEl.innerHTML = `
- <span title="${_t('roleModal.currentPageSelectedTitle')}">✅ ${_t('roleModal.currentPageSelected', { current: currentPageEnabled, total: currentPageTotal })}</span>
- <span title="${_t('roleModal.totalSelectedTitle')}">📊 ${_t('roleModal.totalSelected', { current: totalSelected, total: totalTools })}</span>
+ <span title="${_t('roleModal.currentPageSelectedTitle')}">${_t('roleModal.currentPageSelected', { current: currentPageEnabled, total: currentPageTotal })}</span>
+ <span title="${_t('roleModal.totalSelectedTitle')}">${_t('roleModal.totalSelected', { current: totalSelected, total: totalTools })}</span>
  `;
 }
 async function getSelectedRoleTools() {

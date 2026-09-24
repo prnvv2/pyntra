@@ -385,7 +385,7 @@ function renderTasks(tasks) {
  if (historyTasks.length > 0) {
  html += `<div class="tasks-history-section">
  <div class="tasks-history-header">
- <span class="tasks-history-title">📜 ` + _t('tasks.recentCompletedTasks') + `</span>
+ <span class="tasks-history-title">` + _t('tasks.recentCompletedTasks') + `</span>
  <button class="btn-secondary btn-small" onclick="clearTasksHistory()">` + _t('tasks.clearHistory') + `</button>
  </div>
  ${historyTasks.map(task => renderTaskItem(task, statusMap, true)).join('')}
@@ -439,11 +439,11 @@ function renderTaskItem(task, statusMap, isHistory = false) {
  </label>
  ` : '<div class="task-checkbox-placeholder"></div>'}
  <span class="task-status ${status.class}">${status.text}</span>
- ${isHistory ? '<span class="task-history-badge" title="' + _t('tasks.historyBadge') + '">📜</span>' : ''}
+ ${isHistory ? '<span class="task-history-badge" title="' + _t('tasks.historyBadge') + '">' + (typeof window.pyIcon === 'function' ? window.pyIcon('history', { size: 12 }) : '') + '</span>' : ''}
  <span class="task-message" title="${escapeHtml(task.message || _t('tasks.unnamedTask'))}">${escapeHtml(task.message || _t('tasks.unnamedTask'))}</span>
  </div>
  <div class="task-actions">
- ${duration ? `<span class="task-duration" title="${_t('tasks.duration')}">⏱ ${duration}</span>` : ''}
+ ${duration ? `<span class="task-duration" title="${_t('tasks.duration')}">${typeof window.pyIcon === 'function' ? window.pyIcon('timer', { size: 12 }) : ''}${duration}</span>` : ''}
  <span class="task-time" title="${isHistory && completedText ? _t('tasks.completedAt') : _t('tasks.startedAt')}">
  ${isHistory && completedText ? completedText : timeText}
  </span>
@@ -824,29 +824,11 @@ async function createBatchQueue() {
  alert(_t('tasks.createBatchQueueFailed') + ': ' + error.message);
  }
 }
+// Emoji-free role glyph: 1-2 letter monogram (matches roles.js roleMonogram).
 function getRoleIconForDisplay(roleName, rolesList) {
- if (!roleName || roleName === '') {
- return '🔵'; // 
- }
- 
- if (Array.isArray(rolesList) && rolesList.length > 0) {
- const role = rolesList.find(r => r.name === roleName);
- if (role && role.icon) {
- let icon = role.icon;
- const unicodeMatch = icon.match(/^"?\\U([0-9A-F]{8})"?$/i);
- if (unicodeMatch) {
- try {
- const codePoint = parseInt(unicodeMatch[1], 16);
- icon = String.fromCodePoint(codePoint);
- } catch (e) {
- console.warn(' icon Unicode failed:', icon, e);
- return '👤';
- }
- }
- return icon;
- }
- }
- return '👤'; // 
+ const parts = String(roleName || '').trim().split(/[ _-]+/).filter(Boolean);
+ if (!parts.length) return 'DF';
+ return (parts.length >= 2 ? parts[0][0] + parts[1][0] : parts[0].slice(0, 2)).toUpperCase();
 }
 async function loadBatchQueues(page) {
  const section = document.getElementById('batch-queues-section');

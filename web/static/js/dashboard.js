@@ -279,11 +279,10 @@ function renderDashboardToolsBar(monitorRes) {
  entries.forEach(function (e, i) {
  var pct = maxCalls > 0 ? (e.totalCalls / maxCalls) * 100 : 0;
  var label = e.name.length > 12 ? e.name.slice(0, 10) + '…' : e.name;
- var color = DASHBOARD_BAR_COLORS[i % DASHBOARD_BAR_COLORS.length];
  var fullName = esc(e.name);
  html += '<div class="dashboard-tools-bar-item" data-tooltip="' + fullName + '">';
  html += '<span class="dashboard-tools-bar-label">' + esc(label) + '</span>';
- html += '<div class="dashboard-tools-bar-track"><div class="dashboard-tools-bar-fill" style="width:' + pct + '%;background:' + color + '"></div></div>';
+ html += '<div class="dashboard-tools-bar-track"><div class="dashboard-tools-bar-fill" style="width:' + pct + '%"></div></div>';
  html += '<span class="dashboard-tools-bar-value">' + e.totalCalls + '</span>';
  html += '</div>';
  });
@@ -340,3 +339,226 @@ function dashboardBarTooltipOnOut(ev) {
  dashboardBarTooltipTimer = null;
  if (dashboardBarTooltipEl) dashboardBarTooltipEl.style.display = 'none';
 }
+
+/* ============================================================
+   Enterprise motion layer (Pyntra dashboard)
+   Non-invasive: enhances the existing dashboard with count-up
+   animations, live per-KPI sparklines, an animated severity
+   donut, auto-refresh + live indicator, and card entrance.
+   All driven by the SAME real data refreshDashboard() loads.
+   ============================================================ */
+(function () {
+  "use strict";
+  if (window.__pyntraDashPro) return;
+  window.__pyntraDashPro = true;
+
+  var REDUCED = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var KPI_IDS = ["dashboard-running-tasks", "dashboard-vuln-total", "dashboard-kpi-tools-calls", "dashboard-kpi-success-rate"];
+  var SEV_IDS = ["critical", "high", "medium", "low", "info"];
+  var history = {};
+  var refreshTimer = null;
+
+  function cssv(n, fb) {
+    try { var v = getComputedStyle(document.documentElement).getPropertyValue(n).trim(); return v || fb; }
+    catch (e) { return fb; }
+  }
+  function sevColor(s) {
+    var fb = { critical: "#dc2626", high: "#ea580c", medium: "#d97706", low: "#2563eb", info: "#64748b" };
+    return cssv("--sev-" + s, fb[s]);
+  }
+  function parseVal(txt) {
+    if (txt == null) return null;
+    var m = String(txt).replace(/,/g, "").match(/-?\d+(\.\d+)?/);
+    return m ? parseFloat(m[0]) : null;
+  }
+  function fmt(v, pct) {
+    if (pct) return (Math.round(v * 10) / 10).toFixed(1) + "%";
+    return Math.round(v).toLocaleString();
+  }
+
+  /* count-up on the real KPI numbers */
+  function animateTo(el, target, pct) {
+    // _writing stays true for the WHOLE write (incl. across rAF frames) so the
+    // MutationObserver — which fires asynchronously — never re-triggers us.
+    if (REDUCED || (typeof el._shown === "number" && el._shown === target)) {
+      el._writing = true; el.textContent = fmt(target, pct); el._shown = target;
+      Promise.resolve().then(function () { el._writing = false; });
+      return;
+    }
+    var from = (typeof el._shown === "number") ? el._shown : 0;
+    var dur = 700, start = performance.now();
+    cancelAnimationFrame(el._raf);
+    el._writing = true;
+    function step(now) {
+      var p = Math.min(1, (now - start) / dur), e = 1 - Math.pow(1 - p, 3);
+      var v = from + (target - from) * e;
+      el.textContent = fmt(v, pct);
+      if (p < 1) { el._raf = requestAnimationFrame(step); }
+      else { el._shown = target; Promise.resolve().then(function () { el._writing = false; }); }
+    }
+    el._raf = requestAnimationFrame(step);
+  }
+  function watchKPI(id) {
+    var el = document.getElementById(id); if (!el) return;
+    var pct = id.indexOf("success-rate") > -1;
+    function handle() {
+      if (el._writing) return;
+      var val = parseVal(el.textContent.trim());
+      if (val == null) return;
+      if (val === el._shown) return;
+      pushHistory(id, val);
+      animateTo(el, val, pct);
+    }
+    new MutationObserver(handle).observe(el, { childList: true, characterData: true, subtree: true });
+    handle();
+  }
+
+  /* rolling sparkline history + canvas */
+  function pushHistory(id, v) {
+    (history[id] = history[id] || []).push(v);
+    if (history[id].length > 40) history[id].shift();
+    var cv = document.getElementById("spark-" + id);
+    if (cv) drawSpark(cv, history[id], id);
+  }
+  function ensureSparks() {
+    KPI_IDS.forEach(function (id) {
+      var el = document.getElementById(id); if (!el) return;
+      var card = el.closest(".dashboard-kpi-card"); if (!card || card.querySelector(".kpi-spark")) return;
+      var cv = document.createElement("canvas");
+      cv.className = "kpi-spark"; cv.id = "spark-" + id;
+      cv.setAttribute("aria-hidden", "true");
+      card.appendChild(cv);
+    });
+  }
+  function drawSpark(cv, data, id) {
+    var c = cv.getContext("2d"); if (!c) return;
+    if (!data || data.length < 2) { c.clearRect(0, 0, cv.width, cv.height); return; }
+    var dpr = window.devicePixelRatio || 1;
+    var w = cv.clientWidth || 92, h = cv.clientHeight || 30;
+    cv.width = w * dpr; cv.height = h * dpr;
+    c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, h);
+    var color = id.indexOf("vuln") > -1 ? sevColor("critical")
+      : id.indexOf("success") > -1 ? cssv("--success-color", "#16a34a")
+      : id.indexOf("tools") > -1 ? cssv("--info-color", "#64748b")
+      : cssv("--accent-color", "#2563eb");
+    var mn = Math.min.apply(null, data), mx = Math.max.apply(null, data), rg = (mx - mn) || 1, p = 3;
+    var X = function (i) { return p + i * (w - 2 * p) / (data.length - 1); };
+    var Y = function (v) { return h - p - (v - mn) / rg * (h - 2 * p); };
+    // Flat, low-opacity area (no gradient) under a crisp line.
+    c.beginPath(); c.moveTo(X(0), Y(data[0]));
+    for (var i = 1; i < data.length; i++) c.lineTo(X(i), Y(data[i]));
+    c.lineTo(X(data.length - 1), h - p); c.lineTo(X(0), h - p); c.closePath(); c.fillStyle = hexA(color, 0.08); c.fill();
+    c.beginPath(); c.moveTo(X(0), Y(data[0]));
+    for (i = 1; i < data.length; i++) c.lineTo(X(i), Y(data[i]));
+    c.lineWidth = 1.5; c.strokeStyle = color; c.lineJoin = "round"; c.stroke();
+    c.beginPath(); c.arc(X(data.length - 1), Y(data[data.length - 1]), 2.2, 0, 7); c.fillStyle = color; c.fill();
+  }
+  function hexA(hex, a) {
+    hex = String(hex).trim();
+    if (hex.charAt(0) === "#") {
+      hex = hex.slice(1); if (hex.length === 3) hex = hex.split("").map(function (ch) { return ch + ch; }).join("");
+      var n = parseInt(hex, 16); return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")";
+    }
+    return hex;
+  }
+
+  /* animated severity donut */
+  function ensureDonut() {
+    var bar = document.getElementById("dashboard-stacked-bar");
+    var wrap = bar && bar.closest(".dashboard-chart-wrap"); if (!wrap) return null;
+    if (!wrap.classList.contains("has-donut")) {
+      wrap.classList.add("has-donut");
+      var box = document.createElement("div"); box.className = "dashboard-donut-box";
+      var cv = document.createElement("canvas"); cv.id = "dashboard-donut"; cv.className = "dashboard-donut";
+      var ctr = document.createElement("div"); ctr.className = "dashboard-donut-center";
+      ctr.innerHTML = '<span class="dashboard-donut-total" id="dashboard-donut-total">0</span><span class="dashboard-donut-cap">Findings</span>';
+      box.appendChild(cv); box.appendChild(ctr);
+      wrap.insertBefore(box, wrap.firstChild);
+    }
+    return document.getElementById("dashboard-donut");
+  }
+  var donutTimer = null;
+  function drawDonut() {
+    var cv = ensureDonut(); if (!cv) return;
+    var counts = SEV_IDS.map(function (s) { var el = document.getElementById("dashboard-severity-" + s); return Math.max(0, parseVal(el && el.textContent) || 0); });
+    var total = counts.reduce(function (a, b) { return a + b; }, 0);
+    var totalEl = document.getElementById("dashboard-donut-total"); if (totalEl) totalEl.textContent = total.toLocaleString();
+    var dpr = window.devicePixelRatio || 1, S = 132;
+    cv.width = S * dpr; cv.height = S * dpr; cv.style.width = S + "px"; cv.style.height = S + "px";
+    var x = cv.getContext("2d"); if (!x) return; x.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var cx = S / 2, cy = S / 2, r = S / 2 - 8, lw = 14;
+    function render(prog) {
+      x.clearRect(0, 0, S, S);
+      x.lineWidth = lw; x.lineCap = "butt";
+      x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.strokeStyle = cssv("--bg-tertiary", "#e8edf4"); x.stroke();
+      if (total === 0) return;
+      var a0 = -Math.PI / 2;
+      for (var i = 0; i < SEV_IDS.length; i++) {
+        if (!counts[i]) continue;
+        var frac = counts[i] / total, a1 = a0 + frac * Math.PI * 2 * prog;
+        x.beginPath(); x.arc(cx, cy, r, a0, a1); x.strokeStyle = sevColor(SEV_IDS[i]); x.stroke();
+        a0 = a1;
+      }
+    }
+    if (REDUCED) { render(1); return; }
+    var start = performance.now(), dur = 800;
+    (function step(now) {
+      var pr = Math.min(1, (now - start) / dur), e = 1 - Math.pow(1 - pr, 3);
+      render(e); if (pr < 1) requestAnimationFrame(step);
+    })(start);
+  }
+
+  /* live indicator + auto refresh */
+  function ensureLive() {
+    var actions = document.querySelector("#page-dashboard .page-header-actions");
+    if (!actions || document.getElementById("dashboard-live")) return;
+    var s = document.createElement("span");
+    s.id = "dashboard-live"; s.className = "dashboard-live";
+    s.innerHTML = '<span class="dashboard-live-dot"></span><span>Live</span><span class="dashboard-live-sep">/</span><span id="dashboard-live-time">just now</span>';
+    actions.insertBefore(s, actions.firstChild);
+  }
+  function markUpdated() {
+    var t = document.getElementById("dashboard-live-time");
+    if (t) t.textContent = new Date().toLocaleTimeString();
+    drawDonut();
+    KPI_IDS.forEach(function (id) { var cv = document.getElementById("spark-" + id); if (cv && history[id]) drawSpark(cv, history[id], id); });
+  }
+  function dashActive() {
+    var p = document.getElementById("page-dashboard");
+    return p && p.classList.contains("active");
+  }
+  function startAuto() {
+    if (refreshTimer) return;
+    refreshTimer = setInterval(function () {
+      if (dashActive() && !document.hidden && typeof refreshDashboard === "function") {
+        Promise.resolve(refreshDashboard()).then(markUpdated);
+      }
+    }, 15000);
+  }
+
+  function boot() {
+    ensureSparks(); ensureDonut(); ensureLive();
+    KPI_IDS.forEach(watchKPI);
+    SEV_IDS.forEach(function (s) {
+      var el = document.getElementById("dashboard-severity-" + s); if (!el) return;
+      new MutationObserver(function () { clearTimeout(donutTimer); donutTimer = setTimeout(function () { drawDonut(); }, 60); })
+        .observe(el, { childList: true, characterData: true, subtree: true });
+    });
+    new MutationObserver(function () { setTimeout(markUpdated, 30); })
+      .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    startAuto();
+    setTimeout(markUpdated, 400);
+  }
+
+  if (typeof window.refreshDashboard === "function") {
+    var orig = window.refreshDashboard;
+    window.refreshDashboard = function () {
+      var r = orig.apply(this, arguments);
+      Promise.resolve(r).then(function () { setTimeout(markUpdated, 50); });
+      return r;
+    };
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else boot();
+})();

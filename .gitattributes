@@ -1,0 +1,2 @@
+# Vendored third-party assets must stay byte-exact (see web/static/vendor/README.md checksums).
+web/static/vendor/** -text

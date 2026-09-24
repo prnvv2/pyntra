@@ -100,14 +100,8 @@ function getAgentModeLabelForValue(mode) {
 }
 
 function getAgentModeIconForValue(mode) {
- switch (mode) {
- case CHAT_AGENT_MODE_REACT: return '🤖';
- case CHAT_AGENT_MODE_EINO_SINGLE: return '⚡';
- case 'deep': return '🧩';
- case 'plan_execute': return '📋';
- case 'supervisor': return '🎯';
- default: return '🤖';
- }
+ // Emoji-free: the mode is conveyed by its text label; no decorative glyph.
+ return '';
 }
 
 function syncAgentModeFromValue(value) {
@@ -120,6 +114,7 @@ function syncAgentModeFromValue(value) {
  document.querySelectorAll('.agent-mode-option').forEach(function (el) {
  const v = el.getAttribute('data-value');
  el.classList.toggle('selected', v === value);
+ el.setAttribute('aria-selected', v === value ? 'true' : 'false');
  });
 }
 
@@ -302,7 +297,7 @@ async function sendMessage() {
  message = CHAT_FILE_DEFAULT_PROMPT;
  }
  const displayMessage = hasAttachments
- ? message + '\n' + chatAttachments.map(a => '📎 ' + a.fileName).join('\n')
+ ? message + '\n' + chatAttachments.map(a => '[file] ' + a.fileName).join('\n')
  : message;
  addMessage('user', displayMessage);
  if (draftSaveTimer) {
@@ -964,7 +959,7 @@ function renderMentionSuggestions({ showLoading = false } = {}) {
  return `
  <button type="button" class="mention-item ${activeClass} ${disabledClass}" data-index="${index}">
  <div class="mention-item-name">
- <span class="mention-item-icon">🔧</span>
+ <span class="mention-item-icon">${uiIcon('wrench', 14)}</span>
  <span class="mention-item-text">@${nameHtml}</span>
  ${badge}
  </div>
@@ -1106,6 +1101,31 @@ function applyMentionSelection() {
  deactivateMentionState();
 }
 
+// Group icons are stored as short strings (historically emoji). Display them as
+// line icons; unknown/custom values render as escaped text in a badge.
+const GROUP_ICON_MAP = {
+ '📁': 'folder', '🔒': 'lock', '🛡️': 'shield', '🛡': 'shield', '⚔️': 'swords', '⚔': 'swords', '🎯': 'target', '🔍': 'search',
+ '💻': 'laptop', '🐛': 'bug', '🚀': 'rocket', '⚡': 'zap', '🔥': 'flame', '💡': 'lightbulb', '🎮': 'gamepad-2',
+ '🏴‍☠️': 'flag', '🕵️': 'user-search', '🕵': 'user-search', '🔑': 'key-round', '📡': 'radar', '🌐': 'globe',
+ '📊': 'chart-column', '📝': 'notebook-pen', '🗂️': 'archive', '🗂': 'archive', '📌': 'pin', '⭐': 'star', '💎': 'gem'
+};
+function groupIconMarkup(value, size) {
+ const v = String(value || '📁').trim();
+ const name = GROUP_ICON_MAP[v];
+ if (name && typeof window.pyIcon === 'function') return window.pyIcon(name, { size: size || 14 });
+ const span = document.createElement('span');
+ span.className = 'group-icon-text';
+ span.textContent = v.slice(0, 2);
+ return span.outerHTML;
+}
+function setGroupIconButton(btn, value) {
+ if (!btn) return;
+ btn.dataset.icon = value;
+ btn.innerHTML = groupIconMarkup(value, 16);
+}
+function uiIcon(name, size) {
+ return typeof window.pyIcon === 'function' ? window.pyIcon(name, { size: size || 14 }) : '';
+}
 function initializeChatUI() {
  const chatInputEl = document.getElementById('chat-input');
  if (chatInputEl) {
@@ -1382,7 +1402,7 @@ function addMessage(role, content, mcpExecutionIds = null, progressId = null, cr
  
  const mcpLabel = document.createElement('div');
  mcpLabel.className = 'mcp-call-label';
- mcpLabel.textContent = '📋 ' + (typeof window.t === 'function' ? window.t('chat.penetrationTestDetail') : 'Penetration test details');
+ mcpLabel.textContent = (typeof window.t === 'function' ? window.t('chat.penetrationTestDetail') : 'Penetration test details');
  mcpSection.appendChild(mcpLabel);
  
  const buttonsContainer = document.createElement('div');
@@ -1511,10 +1531,10 @@ function renderProcessDetails(messageId, processDetails) {
  if (!mcpLabel && !buttonsContainer) {
  mcpLabel = document.createElement('div');
  mcpLabel.className = 'mcp-call-label';
- mcpLabel.textContent = '📋 ' + (typeof window.t === 'function' ? window.t('chat.penetrationTestDetail') : 'Penetration test details');
+ mcpLabel.textContent = (typeof window.t === 'function' ? window.t('chat.penetrationTestDetail') : 'Penetration test details');
  mcpSection.appendChild(mcpLabel);
- } else if (mcpLabel && mcpLabel.textContent !== ('📋 ' + (typeof window.t === 'function' ? window.t('chat.penetrationTestDetail') : 'Penetration test details'))) {
- mcpLabel.textContent = '📋 ' + (typeof window.t === 'function' ? window.t('chat.penetrationTestDetail') : 'Penetration test details');
+ } else if (mcpLabel && mcpLabel.textContent !== ((typeof window.t === 'function' ? window.t('chat.penetrationTestDetail') : 'Penetration test details'))) {
+ mcpLabel.textContent = (typeof window.t === 'function' ? window.t('chat.penetrationTestDetail') : 'Penetration test details');
  }
  if (!buttonsContainer) {
  buttonsContainer = document.createElement('div');
@@ -1608,42 +1628,41 @@ function renderProcessDetails(messageId, processDetails) {
  itemTitle = agPx + (typeof window.t === 'function' ? window.t('chat.iterationRound', { n: n }) : ' ' + n + ' ');
  }
  } else if (eventType === 'thinking') {
- itemTitle = agPx + '🤔 ' + (typeof window.t === 'function' ? window.t('chat.aiThinking') : 'AI thinking');
+ itemTitle = agPx + (typeof window.t === 'function' ? window.t('chat.aiThinking') : 'AI thinking');
  } else if (eventType === 'planning') {
  if (typeof window.einoMainStreamPlanningTitle === 'function') {
  itemTitle = window.einoMainStreamPlanningTitle(data);
  } else {
- itemTitle = agPx + '📝 ' + (typeof window.t === 'function' ? window.t('chat.planning') : 'Planning');
+ itemTitle = agPx + (typeof window.t === 'function' ? window.t('chat.planning') : 'Planning');
  }
  } else if (eventType === 'tool_calls_detected') {
- itemTitle = agPx + '🔧 ' + (typeof window.t === 'function' ? window.t('chat.toolCallsDetected', { count: data.count || 0 }) : ' ' + (data.count || 0) + ' toolcall');
+ itemTitle = agPx + (typeof window.t === 'function' ? window.t('chat.toolCallsDetected', { count: data.count || 0 }) : ' ' + (data.count || 0) + ' toolcall');
  } else if (eventType === 'tool_call') {
  const toolName = data.toolName || (typeof window.t === 'function' ? window.t('chat.unknownTool') : 'Unknown tool');
  const index = data.index || 0;
  const total = data.total || 0;
- itemTitle = agPx + '🔧 ' + (typeof window.t === 'function' ? window.t('chat.callTool', { name: escapeHtml(toolName), index: index, total: total }) : 'calltool: ' + escapeHtml(toolName) + ' (' + index + '/' + total + ')');
+ itemTitle = agPx + (typeof window.t === 'function' ? window.t('chat.callTool', { name: escapeHtml(toolName), index: index, total: total }) : 'calltool: ' + escapeHtml(toolName) + ' (' + index + '/' + total + ')');
  } else if (eventType === 'tool_result') {
  const toolName = data.toolName || (typeof window.t === 'function' ? window.t('chat.unknownTool') : 'Unknown tool');
  const success = data.success !== false;
- const statusIcon = success ? '✅' : '❌';
  const execText = success ? (typeof window.t === 'function' ? window.t('chat.toolExecComplete', { name: escapeHtml(toolName) }) : 'tool ' + escapeHtml(toolName) + ' completed') : (typeof window.t === 'function' ? window.t('chat.toolExecFailed', { name: escapeHtml(toolName) }) : 'tool ' + escapeHtml(toolName) + ' failed');
- let execLine = statusIcon + ' ' + execText;
+ let execLine = execText;
  if (toolName === BuiltinTools.SEARCH_KNOWLEDGE_BASE && success) {
- execLine = '📚 ' + execLine + ' - ' + (typeof window.t === 'function' ? window.t('chat.knowledgeRetrievalTag') : 'Knowledge retrieval');
+ execLine = execLine + ' - ' + (typeof window.t === 'function' ? window.t('chat.knowledgeRetrievalTag') : 'Knowledge retrieval');
  }
  itemTitle = agPx + execLine;
  } else if (eventType === 'eino_agent_reply') {
- itemTitle = agPx + '💬 ' + (typeof window.t === 'function' ? window.t('chat.einoAgentReplyTitle') : 'Sub-agent reply');
+ itemTitle = agPx + (typeof window.t === 'function' ? window.t('chat.einoAgentReplyTitle') : 'Sub-agent reply');
  } else if (eventType === 'eino_recovery') {
  const ri = data.runIndex != null ? data.runIndex : (data.einoRetry != null ? data.einoRetry + 1 : 1);
  const mx = data.maxRuns != null ? data.maxRuns : 3;
- itemTitle = (typeof window.t === 'function' ? window.t('chat.einoRecoveryTitle', { n: ri, max: mx }) : ('🔄 ' + ri + '/' + mx + ' (hint)'));
+ itemTitle = (typeof window.t === 'function' ? window.t('chat.einoRecoveryTitle', { n: ri, max: mx }) : ('Retry ' + ri + '/' + mx + ' (hint)'));
  } else if (eventType === 'knowledge_retrieval') {
- itemTitle = '📚 ' + (typeof window.t === 'function' ? window.t('chat.knowledgeRetrieval') : 'Knowledge retrieval');
+ itemTitle = (typeof window.t === 'function' ? window.t('chat.knowledgeRetrieval') : 'Knowledge retrieval');
  } else if (eventType === 'error') {
- itemTitle = '❌ ' + (typeof window.t === 'function' ? window.t('chat.error') : 'Error');
+ itemTitle = (typeof window.t === 'function' ? window.t('chat.error') : 'Error');
  } else if (eventType === 'cancelled') {
- itemTitle = '⛔ ' + (typeof window.t === 'function' ? window.t('chat.taskCancelled') : 'Task cancelled');
+ itemTitle = (typeof window.t === 'function' ? window.t('chat.taskCancelled') : 'Task cancelled');
  } else if (eventType === 'progress') {
  itemTitle = typeof window.translateProgressMessage === 'function' ? window.translateProgressMessage(detail.message || '') : (detail.message || '');
  }
@@ -2486,7 +2505,7 @@ async function loadAttackChain(conversationId) {
  container.innerHTML = `
  <div style="text-align: center; padding: 28px 24px; color: var(--text-secondary);">
  <div style="display: inline-flex; align-items: center; gap: 8px; font-size: 0.95rem; color: var(--text-primary);">
- <span role="presentation" aria-hidden="true">⏳</span>
+ <span class="inline-spinner" aria-hidden="true"></span>
  <span>attack chaingenerate,</span>
  </div>
  <button class="btn-secondary" onclick="refreshAttackChain()" style="margin-top: 12px; font-size: 0.78rem; padding: 4px 12px;">
@@ -3449,7 +3468,7 @@ async function regenerateAttackChain() {
  if (container) {
  container.innerHTML = `
  <div class="loading-spinner" style="text-align: center; padding: 40px;">
- <div style="margin-bottom: 16px;">⏳ attack chaingenerate...</div>
+ <div class="attack-chain-generating"><span class="inline-spinner" aria-hidden="true"></span>Generating attack chain...</div>
  <div style="color: var(--text-secondary); font-size: 0.875rem;">
  ,generatecompleted
  </div>
@@ -3859,7 +3878,7 @@ async function loadGroups() {
 
  const icon = document.createElement('span');
  icon.className = 'group-item-icon';
- icon.textContent = group.icon || '📁';
+ icon.innerHTML = groupIconMarkup(group.icon);
 
  const name = document.createElement('span');
  name.className = 'group-item-name';
@@ -3870,7 +3889,7 @@ async function loadGroups() {
  if (isPinned) {
  const pinIcon = document.createElement('span');
  pinIcon.className = 'group-item-pinned';
- pinIcon.innerHTML = '📌';
+ pinIcon.innerHTML = uiIcon('pin', 12);
  pinIcon.title = 'Pinned';
  name.appendChild(pinIcon);
  }
@@ -3878,7 +3897,8 @@ async function loadGroups() {
 
  const menuBtn = document.createElement('button');
  menuBtn.className = 'group-item-menu';
- menuBtn.innerHTML = '⋯';
+ menuBtn.innerHTML = uiIcon('ellipsis', 16);
+ menuBtn.setAttribute('aria-label', typeof window.t === 'function' ? window.t('common.more') : 'More actions');
  menuBtn.onclick = (e) => {
  e.stopPropagation();
  showGroupContextMenu(e, group.id);
@@ -4037,7 +4057,7 @@ function createConversationListItemWithMenu(conversation, isPinned) {
  if (isPinned) {
  const pinIcon = document.createElement('span');
  pinIcon.className = 'conversation-item-pinned';
- pinIcon.innerHTML = '📌';
+ pinIcon.innerHTML = uiIcon('pin', 12);
  pinIcon.title = 'Pinned';
  titleWrapper.appendChild(pinIcon);
  }
@@ -4055,7 +4075,8 @@ function createConversationListItemWithMenu(conversation, isPinned) {
  if (group) {
  const groupTag = document.createElement('div');
  groupTag.className = 'conversation-group-tag';
- groupTag.innerHTML = `<span class="group-tag-icon">${group.icon || '📁'}</span><span class="group-tag-name">${group.name}</span>`;
+ groupTag.innerHTML = `<span class="group-tag-icon">${groupIconMarkup(group.icon, 12)}</span><span class="group-tag-name"></span>`;
+ groupTag.querySelector('.group-tag-name').textContent = group.name;
  groupTag.title = `: ${group.name}`;
  contentWrapper.appendChild(groupTag);
  }
@@ -4065,7 +4086,8 @@ function createConversationListItemWithMenu(conversation, isPinned) {
 
  const menuBtn = document.createElement('button');
  menuBtn.className = 'conversation-item-menu';
- menuBtn.innerHTML = '⋯';
+ menuBtn.innerHTML = uiIcon('ellipsis', 16);
+ menuBtn.setAttribute('aria-label', typeof window.t === 'function' ? window.t('common.more') : 'More actions');
  menuBtn.onclick = (e) => {
  e.stopPropagation();
  contextMenuConversationId = conversation.id;
@@ -4973,7 +4995,8 @@ function renderBatchConversations(filtered = null) {
  action.className = 'batch-table-col-action';
  const deleteBtn = document.createElement('button');
  deleteBtn.className = 'batch-delete-btn';
- deleteBtn.innerHTML = '🗑️';
+ deleteBtn.innerHTML = uiIcon('trash-2', 14);
+ deleteBtn.setAttribute('aria-label', typeof window.t === 'function' ? window.t('common.delete') : 'Delete');
  deleteBtn.onclick = () => deleteConversation(conv.id);
  action.appendChild(deleteBtn);
 
@@ -5116,7 +5139,7 @@ function showCreateGroupModal(andMoveConversation = false) {
  input.value = '';
  }
  if (iconBtn) {
- iconBtn.textContent = '📁';
+ setGroupIconButton(iconBtn, '📁');
  }
  if (customInput) {
  customInput.value = '';
@@ -5143,7 +5166,7 @@ function closeCreateGroupModal() {
  }
  const iconBtn = document.getElementById('create-group-icon-btn');
  if (iconBtn) {
- iconBtn.textContent = '📁';
+ setGroupIconButton(iconBtn, '📁');
  }
  const customInput = document.getElementById('custom-icon-input');
  if (customInput) {
@@ -5178,7 +5201,7 @@ function toggleGroupIconPicker() {
 function selectGroupIcon(icon) {
  const iconBtn = document.getElementById('create-group-icon-btn');
  if (iconBtn) {
- iconBtn.textContent = icon;
+ setGroupIconButton(iconBtn, icon);
  }
  const customInput = document.getElementById('custom-icon-input');
  if (customInput) {
@@ -5200,7 +5223,7 @@ function applyCustomIcon() {
  
  const iconBtn = document.getElementById('create-group-icon-btn');
  if (iconBtn) {
- iconBtn.textContent = customIcon;
+ setGroupIconButton(iconBtn, customIcon);
  }
  customInput.value = '';
  const picker = document.getElementById('group-icon-picker');
@@ -5275,7 +5298,7 @@ async function createGroup(event) {
  console.error('namefailed:', error);
  }
  const iconBtn = document.getElementById('create-group-icon-btn');
- const selectedIcon = iconBtn ? iconBtn.textContent.trim() : '📁';
+ const selectedIcon = iconBtn ? (iconBtn.dataset.icon || '📁') : '📁';
 
  try {
  const response = await apiFetch('/api/groups', {
@@ -5470,7 +5493,7 @@ async function loadGroupConversations(groupId, searchQuery = '') {
  if (conv.groupPinned) {
  const pinIcon = document.createElement('span');
  pinIcon.className = 'conversation-item-pinned';
- pinIcon.innerHTML = '📌';
+ pinIcon.innerHTML = uiIcon('pin', 12);
  pinIcon.title = 'Pinned';
  titleWrapper.appendChild(pinIcon);
  }
@@ -5507,7 +5530,8 @@ async function loadGroupConversations(groupId, searchQuery = '') {
  item.appendChild(contentWrapper);
  const menuBtn = document.createElement('button');
  menuBtn.className = 'conversation-item-menu';
- menuBtn.innerHTML = '⋯';
+ menuBtn.innerHTML = uiIcon('ellipsis', 16);
+ menuBtn.setAttribute('aria-label', typeof window.t === 'function' ? window.t('common.more') : 'More actions');
  menuBtn.onclick = (e) => {
  e.stopPropagation();
  contextMenuConversationId = conv.id;

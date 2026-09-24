@@ -1,0 +1,267 @@
+/* ============================================================================
+   Pyntra — Management & settings refinements
+   Layered on top of screens.css: MCP tools & external servers, role cards,
+   webshell split view, settings navigation and sections.
+   ============================================================================ */
+
+/* ---- Section cards (MCP management, knowledge, etc.) --------------------- */
+#page-mcp-management .settings-section {
+  margin-bottom: var(--space-5);
+  padding: 0;
+  background: var(--surface-1);
+  border: var(--border-width) solid var(--border-1);
+  border-radius: var(--radius-md);
+}
+#page-mcp-management .settings-section > h3,
+.settings-section-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--space-10);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  border-bottom: var(--border-width) solid var(--border-1);
+}
+.settings-section-titlebar h3 { margin: 0; padding: 0; font-size: var(--text-sm); font-weight: var(--weight-semibold); border: none; }
+
+/* ---- MCP tool list ------------------------------------------------------- */
+.tools-controls,
+.external-mcp-controls { padding: var(--space-3) var(--space-4); }
+.tools-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.tools-actions .btn-filter { height: calc(var(--control-height) - var(--space-2)); margin: 0; padding: 0 var(--space-3); line-height: 1; }
+.tools-actions .search-box { flex: 1; min-width: 220px; }
+.tools-stats,
+.external-mcp-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: 0;
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  background: none;
+  border: none;
+}
+.tools-stats strong,
+.external-mcp-stats strong { color: var(--text-1); font-variant-numeric: tabular-nums; }
+.tools-list { margin-top: var(--space-3); }
+.tools-list-items {
+  max-height: 60vh;
+  overflow-y: auto;
+  border: var(--border-width) solid var(--border-1);
+  border-radius: var(--radius-sm);
+}
+.tool-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  background: none;
+  border: none;
+  border-bottom: var(--border-width) solid var(--border-1);
+  border-radius: 0;
+}
+.tool-item:last-child { border-bottom: none; }
+.tool-item:hover { background: var(--surface-hover); }
+.tool-item input[type="checkbox"] { margin-top: 2px; }
+.tool-item-info { flex: 1; min-width: 0; }
+.tool-item-name { display: flex; align-items: center; gap: var(--space-2); font-family: var(--font-mono); font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--text-1); }
+.tool-item-desc { overflow: hidden; font-size: var(--text-xs); color: var(--text-3); white-space: nowrap; text-overflow: ellipsis; }
+.external-tool-badge {
+  display: inline-flex;
+  align-items: center;
+  height: var(--badge-height);
+  padding: 0 var(--space-2);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  color: var(--primary);
+  background: var(--primary-subtle);
+  border: var(--border-width) solid var(--primary-subtle-border);
+  border-radius: var(--radius-xs);
+}
+
+/* ---- External MCP servers ------------------------------------------------ */
+.external-mcp-list,
+.external-mcp-items { display: flex; flex-direction: column; gap: var(--space-3); margin-top: var(--space-3); }
+.external-mcp-item {
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-2);
+  border: var(--border-width) solid var(--border-1);
+  border-radius: var(--radius-sm);
+}
+.external-mcp-item-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.external-mcp-item-info { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.external-mcp-item-info h4 { display: flex; align-items: center; gap: var(--space-2); margin: 0; font-family: var(--font-mono); font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+.external-mcp-transport { display: inline-flex; color: var(--text-3); }
+.external-mcp-item-actions { display: flex; gap: var(--space-2); }
+.external-mcp-item-details { margin-top: var(--space-2); font-size: var(--text-xs); color: var(--text-3); }
+.external-mcp-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--chip-height);
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--text-2);
+  background: var(--surface-1);
+  border: var(--border-width) solid var(--border-1);
+  border-radius: var(--radius-pill);
+}
+.external-mcp-status::before { content: ""; width: calc(var(--dot-size) - 1px); height: calc(var(--dot-size) - 1px); border-radius: 50%; background: var(--status-queued); }
+.external-mcp-status[class*="connected"]:not([class*="disconnected"])::before { background: var(--status-completed); }
+.external-mcp-status[class*="error"]::before { background: var(--status-failed); }
+.external-mcp-status[class*="connecting"]::before { background: var(--status-running); }
+.external-mcp-error { margin-top: var(--space-3); }
+.tool-count-badge { margin-left: var(--space-1); }
+.btn-small .py-icon { width: var(--icon-xs); height: var(--icon-xs); }
+
+/* ---- Role cards ---------------------------------------------------------- */
+.role-card-header { align-items: flex-start; }
+.role-card-title { display: flex; align-items: center; gap: var(--space-3); font-size: var(--text-md); line-height: var(--leading-tight); }
+.role-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--control-height);
+  height: var(--control-height);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.02em;
+  color: var(--primary);
+  background: var(--primary-subtle);
+  border: var(--border-width) solid var(--primary-subtle-border);
+  border-radius: var(--radius-sm);
+}
+.role-card-description { font-size: var(--text-sm); color: var(--text-2); }
+.role-card-tools { font-size: var(--text-xs); color: var(--text-2); }
+.role-card-tools-label { color: var(--text-3); }
+
+/* ---- WebShell split view ------------------------------------------------- */
+.webshell-resize-handle { width: var(--space-1); background: transparent; transition: background-color var(--duration-fast) var(--ease-standard); }
+.webshell-resize-handle:hover,
+.webshell-resize-handle.dragging { background: var(--primary-subtle-border); }
+.webshell-db-icon .py-icon,
+.webshell-tree-node .py-icon { color: var(--text-3); }
+
+/* ---- Settings ------------------------------------------------------------ */
+.settings-layout { display: flex; gap: var(--space-6); align-items: flex-start; }
+.settings-sidebar { position: sticky; top: 0; flex-shrink: 0; width: 200px; padding: 0; background: none; border: none; }
+.settings-nav { display: flex; flex-direction: column; gap: 1px; }
+.settings-nav-item {
+  display: flex;
+  align-items: center;
+  height: var(--control-height);
+  padding: 0 var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.settings-nav-item:hover { color: var(--text-1); background: var(--surface-hover); }
+.settings-nav-item.active { color: var(--text-1); background: var(--surface-active); box-shadow: inset var(--focus-width) 0 0 var(--primary); }
+.settings-content { flex: 1; min-width: 0; max-width: 880px; }
+.settings-section-header { margin-bottom: var(--space-4); padding: 0; border: none; }
+.settings-section-header h3 { font-size: var(--text-lg); font-weight: var(--weight-semibold); }
+.settings-subsection {
+  margin-bottom: var(--space-4);
+  padding: 0;
+  background: var(--surface-1);
+  border: var(--border-width) solid var(--border-1);
+  border-radius: var(--radius-md);
+}
+.settings-subsection > h4 {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  border-bottom: var(--border-width) solid var(--border-1);
+}
+.settings-subsection > .settings-description { padding: var(--space-3) var(--space-4) 0; margin: 0; }
+.settings-form { padding: var(--space-4); }
+.settings-subsection-header { margin: var(--space-5) 0 var(--space-3); padding-top: var(--space-4); border-top: var(--border-width) solid var(--border-1); }
+.settings-subsection-header h5 { font-size: var(--text-xs); font-weight: var(--weight-semibold); color: var(--text-2); }
+.settings-actions {
+  position: sticky;
+  bottom: calc(-1 * var(--space-8));
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-4);
+  padding: var(--space-3) 0;
+  background: var(--surface-0);
+  border-top: var(--border-width) solid var(--border-1);
+}
+.test-connection-row { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-1); }
+.test-connection-result { font-size: var(--text-xs); color: var(--text-2); }
+
+/* Terminal: stays dark in both themes (it's a console) */
+.terminal-wrapper { overflow: hidden; border: var(--border-width) solid var(--border-1); border-radius: var(--radius-md); }
+.terminal-tabs { display: flex; align-items: center; gap: var(--space-1); padding: var(--space-1) var(--space-2); background: var(--surface-2); border-bottom: var(--border-width) solid var(--border-1); }
+.terminal-tab { display: inline-flex; align-items: center; gap: var(--space-2); height: var(--control-height-sm); padding: 0 var(--space-2) 0 var(--space-3); font-size: var(--text-xs); color: var(--text-2); border-radius: var(--radius-xs); cursor: pointer; }
+.terminal-tab.active { color: var(--text-1); background: var(--surface-1); box-shadow: var(--shadow-xs); }
+.terminal-tab-close,
+.terminal-tab-new { display: inline-flex; align-items: center; justify-content: center; width: var(--control-height-xs); height: var(--control-height-xs); color: var(--text-3); background: none; border: none; border-radius: var(--radius-xs); }
+.terminal-tab-close:hover,
+.terminal-tab-new:hover { color: var(--text-1); background: var(--surface-hover); }
+
+@media (max-width: 900px) {
+  .settings-layout { flex-direction: column; }
+  .settings-sidebar { position: static; width: 100%; }
+  .settings-nav { flex-direction: row; flex-wrap: wrap; }
+}
+
+/* ---- Skills & agents: full-width card grid ------------------------------ */
+.skills-controls,
+.roles-controls { max-width: none; margin: 0 0 var(--space-4); }
+.skills-search-box,
+.roles-search-box { max-width: 420px; margin: 0; }
+.skills-grid,
+.roles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--space-3);
+  max-width: none;
+  margin: 0;
+}
+.skill-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-4);
+  background: var(--surface-1);
+  border: var(--border-width) solid var(--border-1);
+  border-radius: var(--radius-md);
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+.skill-card:hover { border-color: var(--border-2); }
+.skill-card-header { display: flex; flex-direction: column; gap: var(--space-1); }
+.skill-card-title { font-family: var(--font-mono); font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--text-1); }
+.skill-card-meta { font-size: var(--text-xs); color: var(--text-3); }
+.skill-card-description { margin-top: var(--space-1); font-size: var(--text-sm); color: var(--text-2); }
+.skill-card-actions { display: flex; gap: var(--space-2); }
+#skills-pagination.pagination-fixed { max-width: none; }
+
+/* ---- Knowledge controls spacing ----------------------------------------- */
+.knowledge-controls { display: flex; flex-direction: column; gap: var(--space-4); }
+.knowledge-filters { align-items: flex-end; }
+.terminal-panes { background: var(--slate-950); }
+.terminal-pane,
+.terminal-pane.active { padding: var(--space-2) var(--space-3); border: none; background: var(--slate-950); }
+.terminal-container { min-height: 420px; }
+
+/* Card grids span the page (legacy centered the column) */
+#page-skills-management .page-content,
+#page-agents-management .page-content { align-items: stretch; }
+#skills-list,
+#agents-md-list { width: 100%; }
+.skill-card { align-items: stretch; }
+.skill-card-actions { justify-content: flex-start; }
+#page-agents-management .skill-card-title { font-family: var(--font-sans); }

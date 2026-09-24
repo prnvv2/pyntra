@@ -153,7 +153,7 @@ function renderSkillsList() {
  <div class="skill-card">
  <div class="skill-card-header">
  <h3 class="skill-card-title">${escapeHtml(skill.name || sid)}</h3>
- ${meta ? `<div class="skill-card-meta" style="opacity:0.85;font-size:12px;margin-top:4px;">${escapeHtml(meta)}</div>` : ''}
+ ${meta ? `<div class="skill-card-meta">${escapeHtml(meta)}</div>` : ''}
  <div class="skill-card-description">${escapeHtml(skill.description || _t('skills.noDescription'))}</div>
  </div>
  <div class="skill-card-actions">

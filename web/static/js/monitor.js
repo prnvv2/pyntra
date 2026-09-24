@@ -104,10 +104,10 @@ function einoMainStreamPlanningTitle(responseData) {
  else if (a === 'executor') key = 'chat.planExecuteStreamExecutor';
  else if (a === 'replanner' || a === 'execute_replan' || a === 'plan_execute_replan') key = 'chat.planExecuteStreamReplanning';
  const label = typeof window.t === 'function' ? window.t(key) : 'output';
- return prefix + '📝 ' + label;
+ return prefix + label;
  }
  const plan = typeof window.t === 'function' ? window.t('chat.planning') : 'Planning';
- return prefix + '📝 ' + plan;
+ return prefix + plan;
 }
 
 function translateProgressMessage(message, data) {
@@ -364,14 +364,17 @@ function addProgressMessage() {
  
  const bubble = document.createElement('div');
  bubble.className = 'message-bubble progress-container';
+ bubble.dataset.state = 'running';
  const progressTitleText = typeof window.t === 'function' ? window.t('chat.progressInProgress') : 'Penetration test in progress...';
  const stopTaskText = typeof window.t === 'function' ? window.t('tasks.stopTask') : 'Stop task';
  const collapseDetailText = typeof window.t === 'function' ? window.t('tasks.collapseDetail') : 'Collapse details';
  bubble.innerHTML = `
  <div class="progress-header">
- <span class="progress-title">🔍 ${progressTitleText}</span>
+ <span class="progress-indicator" aria-hidden="true"></span>
+ <span class="progress-title" role="status" aria-live="polite">${progressTitleText}</span>
+ <span class="progress-elapsed" data-started="${Date.now()}" aria-hidden="true"></span>
  <div class="progress-actions">
- <button class="progress-stop" id="${id}-stop-btn" onclick="cancelProgressTask('${id}')">${stopTaskText}</button>
+ <button type="button" class="progress-stop" id="${id}-stop-btn" onclick="cancelProgressTask('${id}')">${typeof window.pyIcon === 'function' ? window.pyIcon('square', { size: 12 }) : ''}<span>${stopTaskText}</span></button>
  <button class="progress-toggle" onclick="toggleProgressDetails('${id}')">${collapseDetailText}</button>
  </div>
  </div>
@@ -484,7 +487,7 @@ function integrateProgressToMCPSection(progressId, assistantMessageId, mcpExecut
  mcpSection.className = 'mcp-call-section';
  const mcpLabel = document.createElement('div');
  mcpLabel.className = 'mcp-call-label';
- mcpLabel.textContent = '📋 ' + (typeof window.t === 'function' ? window.t('chat.penetrationTestDetail') : 'Penetration test details');
+ mcpLabel.textContent = (typeof window.t === 'function' ? window.t('chat.penetrationTestDetail') : 'Penetration test details');
  mcpSection.appendChild(mcpLabel);
  const buttonsContainerInit = document.createElement('div');
  buttonsContainerInit.className = 'mcp-call-buttons';
@@ -699,7 +702,7 @@ function convertProgressToDetails(progressId, assistantMessageId) {
  const noProcessDetailText = typeof window.t === 'function' ? window.t('chat.noProcessDetail') : 'No process details (execution may be too fast or no detailed events)';
  bubble.innerHTML = `
  <div class="progress-header">
- <span class="progress-title">📋 ${penetrationDetailText}</span>
+ <span class="progress-indicator is-static" aria-hidden="true"></span><span class="progress-title">${penetrationDetailText}</span>
  ${hasContent ? `<button class="progress-toggle" onclick="toggleProgressDetails('${detailsId}')">${toggleText}</button>` : ''}
  </div>
  ${hasContent ? `<div class="progress-timeline ${expandedClass}" id="${detailsId}-timeline">${timelineHTML}</div><div class="progress-footer"><button type="button" class="progress-toggle progress-toggle-bottom" onclick="toggleProgressDetails('${detailsId}')">${toggleText}</button></div>` : '<div class="progress-timeline-empty">' + noProcessDetailText + '</div>'}
@@ -845,7 +848,7 @@ function handleStreamEvent(event, progressElement, progressId,
  thinkingStreamStateByProgressId.set(progressId, state);
  }
  const thinkBase = typeof window.t === 'function' ? window.t('chat.aiThinking') : 'AI thinking';
- const title = timelineAgentBracketPrefix(d) + '🤔 ' + thinkBase;
+ const title = timelineAgentBracketPrefix(d) + thinkBase;
  const itemId = addTimelineItem(timeline, 'thinking', {
  title: title,
  message: ' ',
@@ -904,7 +907,7 @@ function handleStreamEvent(event, progressElement, progressId,
  }
 
  addTimelineItem(timeline, 'thinking', {
- title: timelineAgentBracketPrefix(event.data) + '🤔 ' + (typeof window.t === 'function' ? window.t('chat.aiThinking') : 'AI thinking'),
+ title: timelineAgentBracketPrefix(event.data) + (typeof window.t === 'function' ? window.t('chat.aiThinking') : 'AI thinking'),
  message: event.message,
  data: event.data
  });
@@ -912,7 +915,7 @@ function handleStreamEvent(event, progressElement, progressId,
  
  case 'tool_calls_detected':
  addTimelineItem(timeline, 'tool_calls_detected', {
- title: timelineAgentBracketPrefix(event.data) + '🔧 ' + (typeof window.t === 'function' ? window.t('chat.toolCallsDetected', { count: event.data?.count || 0 }) : ' ' + (event.data?.count || 0) + ' toolcall'),
+ title: timelineAgentBracketPrefix(event.data) + (typeof window.t === 'function' ? window.t('chat.toolCallsDetected', { count: event.data?.count || 0 }) : ' ' + (event.data?.count || 0) + ' toolcall'),
  message: event.message,
  data: event.data
  });
@@ -920,7 +923,7 @@ function handleStreamEvent(event, progressElement, progressId,
 
  case 'warning':
  addTimelineItem(timeline, 'warning', {
- title: '⚠️',
+ title: (typeof window.t === 'function' && window.t('chat.warning') !== 'chat.warning' ? window.t('chat.warning') : 'Warning'),
  message: event.message,
  data: event.data
  });
@@ -932,7 +935,7 @@ function handleStreamEvent(event, progressElement, progressId,
  const maxRuns = d.maxRuns != null ? d.maxRuns : 3;
  const title = typeof window.t === 'function'
  ? window.t('chat.einoRecoveryTitle', { n: runIdx, max: maxRuns })
- : ('🔄 toolinvalid · ' + runIdx + '/' + maxRuns + ' (hint)');
+ : ('Invalid tool JSON · ' + runIdx + '/' + maxRuns + ' (hint)');
  addTimelineItem(timeline, 'eino_recovery', {
  title: title,
  message: event.message || '',
@@ -952,7 +955,7 @@ function handleStreamEvent(event, progressElement, progressId,
  const toolCallId = toolInfo.toolCallId || null;
  const toolCallTitle = typeof window.t === 'function' ? window.t('chat.callTool', { name: escapeHtml(toolName), index: index, total: total }) : 'calltool: ' + escapeHtml(toolName) + ' (' + index + '/' + total + ')';
  const toolCallItemId = addTimelineItem(timeline, 'tool_call', {
- title: timelineAgentBracketPrefix(toolInfo) + '🔧 ' + toolCallTitle,
+ title: timelineAgentBracketPrefix(toolInfo) + toolCallTitle,
  message: event.message,
  data: toolInfo,
  expanded: false
@@ -980,7 +983,7 @@ function handleStreamEvent(event, progressElement, progressId,
 
  if (!state) {
  const runningLabel = typeof window.t === 'function' ? window.t('timeline.running') : 'Running...';
- const title = timelineAgentBracketPrefix(deltaInfo) + '⏳ ' + (typeof window.t === 'function'
+ const title = timelineAgentBracketPrefix(deltaInfo) + (typeof window.t === 'function'
  ? window.t('timeline.running')
  : runningLabel) + ' ' + (typeof window.t === 'function' ? window.t('chat.callTool', { name: escapeHtmlLocal(toolNameDelta), index: deltaInfo.index || 0, total: deltaInfo.total || 0 }) : toolNameDelta);
 
@@ -1021,7 +1024,6 @@ function handleStreamEvent(event, progressElement, progressId,
  const resultInfo = event.data || {};
  const resultToolName = resultInfo.toolName || (typeof window.t === 'function' ? window.t('chat.unknownTool') : 'Unknown tool');
  const success = resultInfo.success !== false;
- const statusIcon = success ? '✅' : '❌';
  const resultToolCallId = resultInfo.toolCallId || null;
  const resultExecText = success ? (typeof window.t === 'function' ? window.t('chat.toolExecComplete', { name: escapeHtml(resultToolName) }) : 'tool ' + escapeHtml(resultToolName) + ' completed') : (typeof window.t === 'function' ? window.t('chat.toolExecFailed', { name: escapeHtml(resultToolName) }) : 'tool ' + escapeHtml(resultToolName) + ' failed');
  if (resultToolCallId) {
@@ -1044,7 +1046,7 @@ function handleStreamEvent(event, progressElement, progressId,
  if (resultInfo.einoAgent != null && String(resultInfo.einoAgent).trim() !== '') {
  item.dataset.einoAgent = String(resultInfo.einoAgent).trim();
  }
- titleEl.textContent = timelineAgentBracketPrefix(resultInfo) + statusIcon + ' ' + resultExecText;
+ titleEl.textContent = timelineAgentBracketPrefix(resultInfo) + resultExecText;
  }
  }
  toolResultStreamStateByKey.delete(key);
@@ -1061,7 +1063,7 @@ function handleStreamEvent(event, progressElement, progressId,
  toolCallStatusMap.delete(resultToolCallId);
  }
  addTimelineItem(timeline, 'tool_result', {
- title: timelineAgentBracketPrefix(resultInfo) + statusIcon + ' ' + resultExecText,
+ title: timelineAgentBracketPrefix(resultInfo) + resultExecText,
  message: event.message,
  data: resultInfo,
  expanded: false
@@ -1080,7 +1082,7 @@ function handleStreamEvent(event, progressElement, progressId,
  const streamingLabel = typeof window.t === 'function' ? window.t('timeline.running') : 'Running...';
  const replyTitleBase = typeof window.t === 'function' ? window.t('chat.einoAgentReplyTitle') : 'Sub-agent reply';
  const itemId = addTimelineItem(timeline, 'eino_agent_reply', {
- title: timelineAgentBracketPrefix(d) + '💬 ' + replyTitleBase + ' · ' + streamingLabel,
+ title: timelineAgentBracketPrefix(d) + replyTitleBase + ' · ' + streamingLabel,
  message: ' ',
  data: d,
  expanded: false
@@ -1134,7 +1136,7 @@ function handleStreamEvent(event, progressElement, progressId,
  const titleEl = item.querySelector('.timeline-item-title');
  if (titleEl) {
  const replyTitleBase = typeof window.t === 'function' ? window.t('chat.einoAgentReplyTitle') : 'Sub-agent reply';
- titleEl.textContent = timelineAgentBracketPrefix(d) + '💬 ' + replyTitleBase;
+ titleEl.textContent = timelineAgentBracketPrefix(d) + replyTitleBase;
  }
  let contentEl = item.querySelector('.timeline-item-content');
  if (!contentEl) {
@@ -1160,7 +1162,7 @@ function handleStreamEvent(event, progressElement, progressId,
  const replyData = event.data || {};
  const replyTitleBase = typeof window.t === 'function' ? window.t('chat.einoAgentReplyTitle') : 'Sub-agent reply';
  addTimelineItem(timeline, 'eino_agent_reply', {
- title: timelineAgentBracketPrefix(replyData) + '💬 ' + replyTitleBase,
+ title: timelineAgentBracketPrefix(replyData) + replyTitleBase,
  message: event.message || '',
  data: replyData,
  expanded: false
@@ -1181,20 +1183,22 @@ function handleStreamEvent(event, progressElement, progressId,
  }
  }
  const progressMsg = translateProgressMessage(event.message, event.data);
- progressTitle.textContent = '🔍 ' + progressMsg;
+ progressTitle.textContent = progressMsg;
  }
  break;
  
  case 'cancelled':
  const taskCancelledText = typeof window.t === 'function' ? window.t('chat.taskCancelled') : 'Task cancelled';
  addTimelineItem(timeline, 'cancelled', {
- title: '⛔ ' + taskCancelledText,
+ title: taskCancelledText,
  message: event.message,
  data: event.data
  });
  const cancelTitle = document.querySelector(`#${progressId} .progress-title`);
  if (cancelTitle) {
- cancelTitle.textContent = '⛔ ' + taskCancelledText;
+ cancelTitle.textContent = taskCancelledText;
+ const cancelBubble = document.querySelector(`#${progressId} .progress-container`);
+ if (cancelBubble) cancelBubble.dataset.state = 'cancelled';
  }
  const cancelProgressContainer = document.querySelector(`#${progressId} .progress-container`);
  if (cancelProgressContainer) {
@@ -1351,13 +1355,15 @@ function handleStreamEvent(event, progressElement, progressId,
  
  case 'error':
  addTimelineItem(timeline, 'error', {
- title: '❌ ' + (typeof window.t === 'function' ? window.t('chat.error') : 'Error'),
+ title: (typeof window.t === 'function' ? window.t('chat.error') : 'Error'),
  message: event.message,
  data: event.data
  });
  const errorTitle = document.querySelector(`#${progressId} .progress-title`);
  if (errorTitle) {
- errorTitle.textContent = '❌ ' + (typeof window.t === 'function' ? window.t('chat.executionFailed') : 'Execution failed');
+ errorTitle.textContent = (typeof window.t === 'function' ? window.t('chat.executionFailed') : 'Execution failed');
+ const errorBubble = document.querySelector(`#${progressId} .progress-container`);
+ if (errorBubble) errorBubble.dataset.state = 'failed';
  }
  const progressContainer = document.querySelector(`#${progressId} .progress-container`);
  if (progressContainer) {
@@ -1399,7 +1405,9 @@ function handleStreamEvent(event, progressElement, progressId,
  }
  const doneTitle = document.querySelector(`#${progressId} .progress-title`);
  if (doneTitle) {
- doneTitle.textContent = '✅ ' + (typeof window.t === 'function' ? window.t('chat.penetrationTestComplete') : 'Penetration test complete');
+ doneTitle.textContent = (typeof window.t === 'function' ? window.t('chat.penetrationTestComplete') : 'Penetration test complete');
+ const doneBubble = document.querySelector(`#${progressId} .progress-container`);
+ if (doneBubble && doneBubble.dataset.state === 'running') doneBubble.dataset.state = 'completed';
  }
  if (event.data && event.data.conversationId) {
  currentConversationId = event.data.conversationId;
@@ -1434,6 +1442,14 @@ function handleStreamEvent(event, progressElement, progressId,
  }
  scrollChatMessagesToBottomIfPinned(streamScrollWasPinned);
 }
+// Elapsed time for a tool-call card, from the item's creation timestamp.
+function timelineDurationBadge(item) {
+ const started = item && item.dataset ? Date.parse(item.dataset.createdAtIso || '') : NaN;
+ if (isNaN(started)) return '';
+ const ms = Math.max(0, Date.now() - started);
+ const text = ms < 1000 ? ms + ' ms' : ms < 60000 ? (ms / 1000).toFixed(1) + ' s' : Math.floor(ms / 60000) + 'm ' + Math.round((ms % 60000) / 1000) + 's';
+ return '<span class="tool-duration" title="Duration">' + text + '</span>';
+}
 function updateToolCallStatus(toolCallId, status) {
  const mapping = toolCallStatusMap.get(toolCallId);
  if (!mapping) return;
@@ -1454,13 +1470,13 @@ function updateToolCallStatus(toolCallId, status) {
  statusText = ' <span class="tool-status-badge tool-status-running">' + escapeHtml(runningLabel) + '</span>';
  } else if (status === 'completed') {
  item.classList.add('tool-call-completed');
- statusText = ' <span class="tool-status-badge tool-status-completed">✅ ' + escapeHtml(completedLabel) + '</span>';
+ statusText = ' <span class="tool-status-badge tool-status-completed">' + escapeHtml(completedLabel) + '</span>' + timelineDurationBadge(item);
  } else if (status === 'failed') {
  item.classList.add('tool-call-failed');
- statusText = ' <span class="tool-status-badge tool-status-failed">❌ ' + escapeHtml(failedLabel) + '</span>';
+ statusText = ' <span class="tool-status-badge tool-status-failed">' + escapeHtml(failedLabel) + '</span>' + timelineDurationBadge(item);
  }
  const originalText = titleElement.innerHTML;
- const cleanText = originalText.replace(/\s*<span class="tool-status-badge[^>]*>.*?<\/span>/g, '');
+ const cleanText = originalText.replace(/\s*<span class="tool-status-badge[^>]*>.*?<\/span>/g, '').replace(/<span class="tool-duration"[^>]*>.*?<\/span>/g, '');
  titleElement.innerHTML = cleanText + statusText;
 }
 function addTimelineItem(timeline, type, options) {
@@ -1531,10 +1547,13 @@ function addTimelineItem(timeline, type, options) {
  const timeOpts = getTimeFormatOptions();
  const time = eventTime.toLocaleTimeString(timeLocale, timeOpts);
  
+ const collapsible = (type === 'tool_call' || type === 'tool_result' || type === 'thinking' || type === 'planning' || type === 'eino_agent_reply');
  let content = `
- <div class="timeline-item-header">
- <span class="timeline-item-time">${time}</span>
+ <div class="timeline-item-header"${collapsible ? ' role="button" tabindex="0" aria-expanded="true"' : ''}>
+ <span class="timeline-item-icon" aria-hidden="true"></span>
  <span class="timeline-item-title">${escapeHtml(options.title || '')}</span>
+ <span class="timeline-item-time">${time}</span>
+ ${collapsible ? '<span class="timeline-item-chevron" aria-hidden="true"></span>' : ''}
  </div>
  `;
  if ((type === 'thinking' || type === 'planning') && options.message) {
@@ -1591,6 +1610,8 @@ function addTimelineItem(timeline, type, options) {
  ${escapeHtml(options.message).replace(/\n/g, '<br>')}
  </div>
  `;
+ } else if (type === 'warning' && options.message) {
+ content += `<div class="timeline-item-content">${escapeHtml(options.message)}</div>`;
  } else if (type === 'cancelled') {
  const taskCancelledLabel = typeof window.t === 'function' ? window.t('chat.taskCancelled') : 'Task cancelled';
  content += `
@@ -1933,7 +1954,7 @@ function renderMonitorStats(statsMap = {}, lastFetchedAt = null) {
  </div>
  <div class="monitor-stat-card">
  <h4>${escapeHtml(lastCallLabel)}</h4>
- <div class="monitor-stat-value" style="font-size:1rem;">${escapeHtml(lastCallText)}</div>
+ <div class="monitor-stat-value is-text">${escapeHtml(lastCallText)}</div>
  <div class="monitor-stat-meta">${escapeHtml(lastRefreshLabel)}:${escapeHtml(lastUpdatedText)}</div>
  </div>
  `;
@@ -2396,3 +2417,29 @@ document.addEventListener('languagechange', function () {
  loadActiveTasks();
  refreshProgressAndTimelineI18n();
 });
+
+// Collapsible timeline cards (tool calls, results, reasoning). Presentation only.
+(function () {
+ function toggle(header) {
+ const item = header.closest('.timeline-item');
+ if (!item) return;
+ const collapsed = item.classList.toggle('is-collapsed');
+ header.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+ }
+ document.addEventListener('click', function (e) {
+ const header = e.target.closest('.timeline-item-header[role="button"]');
+ if (header && !e.target.closest('a, button, pre, code')) toggle(header);
+ });
+ document.addEventListener('keydown', function (e) {
+ if (e.key !== 'Enter' && e.key !== ' ') return;
+ const header = e.target.closest && e.target.closest('.timeline-item-header[role="button"]');
+ if (header) { e.preventDefault(); toggle(header); }
+ });
+ // Live elapsed timer on running progress bubbles
+ setInterval(function () {
+ document.querySelectorAll('.progress-container[data-state="running"] .progress-elapsed[data-started]').forEach(function (el) {
+ const s = Math.floor((Date.now() - Number(el.dataset.started)) / 1000);
+ el.textContent = s < 60 ? s + 's' : Math.floor(s / 60) + 'm ' + String(s % 60).padStart(2, '0') + 's';
+ });
+ }, 1000);
+})();
