@@ -293,6 +293,21 @@ type ParameterConfig struct {
 }
 
 func Load(path string) (*Config, error) {
+	// First-run convenience: if the config file is missing but an example sits
+	// next to it (config.example.yaml), seed the real config from the example.
+	// This keeps secrets (api_key / auth.password) out of version control — the
+	// example is tracked; the generated config.yaml is git-ignored.
+	if _, statErr := os.Stat(path); os.IsNotExist(statErr) {
+		example := filepath.Join(filepath.Dir(path), "config.example.yaml")
+		if example != path {
+			if exampleData, exErr := os.ReadFile(example); exErr == nil {
+				if wErr := os.WriteFile(path, exampleData, 0600); wErr != nil {
+					return nil, fmt.Errorf("failed to seed configuration from example: %w", wErr)
+				}
+			}
+		}
+	}
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read configuration file: %w", err)
@@ -302,6 +317,10 @@ func Load(path string) (*Config, error) {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse configuration file: %w", err)
 	}
+
+	// Expand ${ENV_VAR} references in secret fields so credentials can be kept
+	// out of config.yaml entirely (e.g. api_key: ${OPENAI_API_KEY}).
+	expandEnvSecrets(&cfg)
 
 	if cfg.Auth.SessionDurationHours <= 0 {
 		cfg.Auth.SessionDurationHours = 12
@@ -905,6 +924,24 @@ type RetrievalConfig struct {
 	SubIndexFilter string `yaml:"sub_index_filter,omitempty" json:"sub_index_filter,omitempty"`
 	// PostRetrieve Post-retrieval processing (deduplication, budget truncation); reranking through code injection [knowledge.DocumentReranker].
 	PostRetrieve PostRetrieveConfig `yaml:"post_retrieve,omitempty" json:"post_retrieve,omitempty"`
+	// Mode selects the retrieval strategy: "dense" (default, vector only),
+	// "lexical" (BM25/FTS5 only), or "hybrid" (both, fused with RRF).
+	Mode string `yaml:"mode,omitempty" json:"mode,omitempty"`
+	// RRFK is the Reciprocal Rank Fusion constant for hybrid mode (default 60).
+	RRFK int `yaml:"rrf_k,omitempty" json:"rrf_k,omitempty"`
+	// Rerank optionally reranks candidates with a cross-encoder endpoint.
+	Rerank RerankConfig `yaml:"rerank,omitempty" json:"rerank,omitempty"`
+}
+
+// RerankConfig configures an optional cross-encoder reranker (OpenAI-compatible
+// /rerank endpoint, e.g. Jina, Cohere, or a local bge-reranker).
+type RerankConfig struct {
+	Enabled        bool   `yaml:"enabled,omitempty" json:"enabled,omitempty"`
+	BaseURL        string `yaml:"base_url,omitempty" json:"base_url,omitempty"`
+	APIKey         string `yaml:"api_key,omitempty" json:"api_key,omitempty"`
+	Model          string `yaml:"model,omitempty" json:"model,omitempty"`
+	TopN           int    `yaml:"top_n,omitempty" json:"top_n,omitempty"`
+	TimeoutSeconds int    `yaml:"timeout_seconds,omitempty" json:"timeout_seconds,omitempty"`
 }
 
 // RolesConfig Role configuration (deprecated; use map[string]RoleConfig instead)

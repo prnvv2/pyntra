@@ -127,6 +127,11 @@ func (e *Embedder) waitRateLimiter() {
 	}
 }
 func (e *Embedder) EmbedText(ctx context.Context, text string) ([]float32, error) {
+	// Serve repeated single-text embeddings (typically queries) from a bounded cache.
+	key := cacheKey(e.EmbeddingModelName(), text)
+	if v, ok := qCache.get(key); ok {
+		return v, nil
+	}
 	vecs, err := e.EmbedStrings(ctx, []string{text})
 	if err != nil {
 		return nil, err
@@ -134,6 +139,7 @@ func (e *Embedder) EmbedText(ctx context.Context, text string) ([]float32, error
 	if len(vecs) != 1 {
 		return nil, fmt.Errorf("unexpected embedding count: %d", len(vecs))
 	}
+	qCache.put(key, vecs[0])
 	return vecs[0], nil
 }
 func (e *Embedder) EmbedStrings(ctx context.Context, texts []string, opts ...embedding.Option) ([][]float32, error) {

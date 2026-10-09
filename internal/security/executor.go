@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"pyntra/internal/config"
@@ -31,6 +32,36 @@ type Executor struct {
 	mcpServer *mcp.Server
 	logger *zap.Logger
 	resultStorage ResultStorage
+	scopeGuard ScopeGuard
+	halted atomic.Bool
+}
+
+// SetHalted engages or releases the global kill-switch. While halted, every tool
+// call is refused — a panic button to stop all agent activity immediately.
+func (e *Executor) SetHalted(v bool) {
+	if e != nil {
+		e.halted.Store(v)
+	}
+}
+
+// Halted reports whether the kill-switch is engaged.
+func (e *Executor) Halted() bool {
+	return e != nil && e.halted.Load()
+}
+
+// ScopeGuard decides whether a tool call is permitted against the active
+// engagement scope. A nil guard (the default) permits everything.
+type ScopeGuard interface {
+	// Check returns a non-nil error to DENY the call; the error message is
+	// surfaced to the agent.
+	Check(toolName string, args map[string]interface{}) error
+}
+
+// SetScopeGuard installs (or clears, with nil) the engagement scope guard.
+func (e *Executor) SetScopeGuard(g ScopeGuard) {
+	if e != nil {
+		e.scopeGuard = g
+	}
 }
 type ResultStorage interface {
 	SaveResult(executionID string, toolName string, result string) error
@@ -73,6 +104,24 @@ func (e *Executor) ExecuteTool(ctx context.Context, toolName string, args map[st
 		zap.String("toolName", toolName),
 		zap.Any("args", args),
 	)
+	// Global kill-switch: refuse everything while halted.
+	if e.Halted() {
+		return &mcp.ToolResult{
+			Content: []mcp.Content{{Type: "text", Text: "BLOCKED: agent execution is halted (kill-switch engaged). Resume from the console to continue."}},
+			IsError: true,
+		}, nil
+	}
+	// Engagement scope enforcement (no-op when no guard / no active scope).
+	if e.scopeGuard != nil {
+		if err := e.scopeGuard.Check(toolName, args); err != nil {
+			e.logger.Warn("tool call blocked by engagement scope",
+				zap.String("toolName", toolName), zap.Error(err))
+			return &mcp.ToolResult{
+				Content: []mcp.Content{{Type: "text", Text: "BLOCKED by engagement scope: " + err.Error()}},
+				IsError: true,
+			}, nil
+		}
+	}
 	if toolName == "exec" {
 		e.logger.Info("exectool")
 		return e.executeSystemCommand(ctx, args)

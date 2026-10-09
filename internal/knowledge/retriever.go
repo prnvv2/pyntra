@@ -30,6 +30,8 @@ type RetrievalConfig struct {
 	SimilarityThreshold float64
 	SubIndexFilter string
 	PostRetrieve config.PostRetrieveConfig
+	Mode string // "dense" (default) | "lexical" | "hybrid"
+	RRFK int    // Reciprocal Rank Fusion constant (default 60)
 }
 func NewRetriever(db *sql.DB, embedder *Embedder, config *RetrievalConfig, logger *zap.Logger) *Retriever {
 	return &Retriever{
@@ -97,6 +99,13 @@ func (r *Retriever) Search(ctx context.Context, req *SearchRequest) ([]*Retrieva
 	q := strings.TrimSpace(req.Query)
 	if q == "" {
 		return nil, fmt.Errorf("query cannot be empty")
+	}
+	// Hybrid / lexical modes (default "" / "dense" keep the eino vector path).
+	if r.config != nil {
+		switch strings.ToLower(strings.TrimSpace(r.config.Mode)) {
+		case "hybrid", "lexical":
+			return r.hybridSearch(ctx, req, strings.ToLower(strings.TrimSpace(r.config.Mode)))
+		}
 	}
 	opts := r.einoRetrieverOptions(req)
 	docs, err := NewVectorEinoRetriever(r).Retrieve(ctx, q, opts...)

@@ -17,7 +17,7 @@ server:
   port: 8080 # HTTP service port, accessible via browser at http://localhost:8080
 # Authentication configuration
 auth:
-  password: Root@1234 # Web login password, please change to a strong password
+  password: "" # Web login password. Leave empty to auto-generate a strong random password on first run (printed to the console and written here). Set your own to override.
   session_duration_hours: 12 # Login validity period (hours), re-login required after timeout
 # Logging configuration
 log:
@@ -188,6 +188,18 @@ knowledge:
   retrieval:
     top_k: 5 # Number of Top-K results returned by retrieval
     similarity_threshold: 0.4 # Cosine similarity threshold (0-1), results below this value will be filtered
+    # Retrieval strategy: dense (default, vector only) | lexical (BM25/FTS5 only) | hybrid (both, fused with RRF).
+    # Hybrid greatly improves recall for exact identifiers (CVE ids, flags, payloads). Requires FTS5 (built in).
+    mode: "" # "", "dense", "lexical", or "hybrid"
+    rrf_k: 60 # Reciprocal Rank Fusion constant for hybrid mode
+    # Optional cross-encoder reranker (OpenAI-compatible /rerank: Jina, Cohere, local bge-reranker).
+    rerank:
+      enabled: false
+      base_url: "" # defaults to embedding/openai base_url when empty
+      api_key: "" # defaults to openai api_key when empty
+      model: "" # e.g. bge-reranker-v2-m3, jina-reranker-v2
+      top_n: 0 # 0 = top_k
+      timeout_seconds: 20
     # Post-retrieval processing: normalized deduplication of main content; context budget; optional DocumentReranker code injection for reranking
     post_retrieve:
       prefetch_top_k: 0 # 0 same as top_k; can set to 15~30 to fill top_k after deduplication

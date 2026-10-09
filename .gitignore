@@ -31,3 +31,6 @@ __pycache__/
 
 # Burp MCP proxy (PortSwigger third-party binary — obtain separately, do not redistribute)
 plugins/burp-suite/mcp-proxy/*.jar
+
+# Local config (contains secrets: api_key / auth.password). Seeded from config.example.yaml on first run.
+/config.yaml

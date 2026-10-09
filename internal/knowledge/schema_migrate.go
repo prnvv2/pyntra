@@ -29,7 +29,44 @@ func EnsureKnowledgeEmbeddingsSchema(db *sql.DB) error {
 		`ALTER TABLE knowledge_embeddings ADD COLUMN embedding_dim INTEGER NOT NULL DEFAULT 0`); err != nil {
 		return err
 	}
+	// Best-effort FTS5 lexical index for hybrid search. If the driver lacks FTS5
+	// this is a no-op and dense retrieval is unaffected.
+	ensureKnowledgeFTS(db)
 	return nil
+}
+
+// KnowledgeFTSAvailable reports whether the FTS5 lexical index exists.
+func KnowledgeFTSAvailable(db *sql.DB) bool {
+	if db == nil {
+		return false
+	}
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='knowledge_fts'`).Scan(&n); err != nil {
+		return false
+	}
+	return n > 0
+}
+
+// ensureKnowledgeFTS creates the FTS5 virtual table and backfills it once from
+// existing chunks. All errors are swallowed: hybrid search is an enhancement,
+// never a hard dependency.
+func ensureKnowledgeFTS(db *sql.DB) {
+	if db == nil {
+		return
+	}
+	_, err := db.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_fts USING fts5(
+		chunk_id UNINDEXED, item_id UNINDEXED, chunk_text, tokenize='porter unicode61')`)
+	if err != nil {
+		return // FTS5 unavailable; dense retrieval still works
+	}
+	// Backfill once if empty but embeddings exist.
+	var ftsCount, embCount int
+	_ = db.QueryRow(`SELECT COUNT(*) FROM knowledge_fts`).Scan(&ftsCount)
+	_ = db.QueryRow(`SELECT COUNT(*) FROM knowledge_embeddings`).Scan(&embCount)
+	if ftsCount == 0 && embCount > 0 {
+		_, _ = db.Exec(`INSERT INTO knowledge_fts (chunk_id, item_id, chunk_text)
+			SELECT id, item_id, chunk_text FROM knowledge_embeddings`)
+	}
 }
 
 func addKnowledgeEmbeddingsColumnIfMissing(db *sql.DB, column, alterSQL string) error {

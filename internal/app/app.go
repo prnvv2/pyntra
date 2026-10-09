@@ -143,8 +143,25 @@ func New(cfg *config.Config, log *logger.Logger) (*App, error) {
 			SimilarityThreshold: cfg.Knowledge.Retrieval.SimilarityThreshold,
 			SubIndexFilter: cfg.Knowledge.Retrieval.SubIndexFilter,
 			PostRetrieve: cfg.Knowledge.Retrieval.PostRetrieve,
+			Mode: cfg.Knowledge.Retrieval.Mode,
+			RRFK: cfg.Knowledge.Retrieval.RRFK,
 		}
 		knowledgeRetriever = knowledge.NewRetriever(knowledgeDB, embedder, retrievalConfig, log.Logger)
+		if rc := cfg.Knowledge.Retrieval.Rerank; rc.Enabled {
+			base := rc.BaseURL
+			if base == "" {
+				base = cfg.Knowledge.Embedding.BaseURL
+			}
+			if base == "" {
+				base = cfg.OpenAI.BaseURL
+			}
+			key := rc.APIKey
+			if key == "" {
+				key = cfg.OpenAI.APIKey
+			}
+			knowledgeRetriever.SetDocumentReranker(knowledge.NewAPIReranker(base, key, rc.Model, rc.TopN, rc.TimeoutSeconds, log.Logger))
+			log.Logger.Info("knowledge reranker enabled", zap.String("model", rc.Model))
+		}
 		knowledgeIndexer, err = knowledge.NewIndexer(context.Background(), knowledgeDB, embedder, log.Logger, &cfg.Knowledge)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize knowledge base indexer: %w", err)
@@ -246,6 +263,12 @@ func New(cfg *config.Config, log *logger.Logger) (*App, error) {
 	authHandler := handler.NewAuthHandler(authManager, cfg, configPath, log.Logger)
 	attackChainHandler := handler.NewAttackChainHandler(db, &cfg.OpenAI, log.Logger)
 	vulnerabilityHandler := handler.NewVulnerabilityHandler(db, log.Logger)
+	engagementHandler := handler.NewEngagementHandler(db, log.Logger)
+	reportHandler := handler.NewReportHandler(db, log.Logger)
+	attackCoverageHandler := handler.NewAttackCoverageHandler(db, log.Logger)
+	// Install the engagement scope guard so out-of-scope tool calls are blocked
+	// (no-op until an engagement with a non-empty scope is made active).
+	executor.SetScopeGuard(engagementHandler)
 	webshellHandler := handler.NewWebShellHandler(log.Logger, db)
 	chatUploadsHandler := handler.NewChatUploadsHandler(log.Logger)
 	registerWebshellTools(mcpServer, db, webshellHandler, log.Logger)
@@ -345,6 +368,9 @@ func New(cfg *config.Config, log *logger.Logger) (*App, error) {
 		mcpServer,
 		authManager,
 		openAPIHandler,
+		engagementHandler,
+		reportHandler,
+		attackCoverageHandler,
 	)
 
 	return app, nil
@@ -416,6 +442,9 @@ func setupRoutes(
 	mcpServer *mcp.Server,
 	authManager *security.AuthManager,
 	openAPIHandler *handler.OpenAPIHandler,
+	engagementHandler *handler.EngagementHandler,
+	reportHandler *handler.ReportHandler,
+	attackCoverageHandler *handler.AttackCoverageHandler,
 ) {
 	api := router.Group("/api")
 	authRoutes := api.Group("/auth")
@@ -484,6 +513,7 @@ func setupRoutes(
 		protected.GET("/config", configHandler.GetConfig)
 		protected.GET("/config/tools", configHandler.GetTools)
 		protected.GET("/config/providers", configHandler.GetProviders)
+		protected.POST("/config/provider-models", configHandler.GetProviderModels)
 		protected.GET("/config/mcp-clients", configHandler.GetMCPClients)
 		protected.PUT("/config", configHandler.UpdateConfig)
 		protected.POST("/config/apply", configHandler.ApplyConfig)
@@ -499,6 +529,7 @@ func setupRoutes(
 		protected.POST("/external-mcp/:name/start", externalMCPHandler.StartExternalMCP)
 		protected.POST("/external-mcp/:name/stop", externalMCPHandler.StopExternalMCP)
 		protected.GET("/attack-chain/:conversationId", attackChainHandler.GetAttackChain)
+		protected.GET("/attack-chain/:conversationId/coverage", attackCoverageHandler.GetCoverage)
 		protected.POST("/attack-chain/:conversationId/regenerate", attackChainHandler.RegenerateAttackChain)
 		knowledgeRoutes := protected.Group("/knowledge")
 		{
@@ -642,7 +673,26 @@ func setupRoutes(
 				}
 				app.knowledgeHandler.GetStats(c)
 			})
+			knowledgeRoutes.GET("/analytics", func(c *gin.Context) {
+				if app.knowledgeHandler == nil {
+					c.JSON(http.StatusOK, gin.H{"enabled": false, "total_queries": 0})
+					return
+				}
+				app.knowledgeHandler.GetRetrievalAnalytics(c)
+			})
 		}
+		protected.GET("/engagements", engagementHandler.ListEngagements)
+		protected.GET("/engagements/active", engagementHandler.GetActiveEngagement)
+		protected.POST("/engagements", engagementHandler.CreateEngagement)
+		protected.PUT("/engagements/:id", engagementHandler.UpdateEngagement)
+		protected.POST("/engagements/:id/activate", engagementHandler.ActivateEngagement)
+		protected.POST("/engagements/deactivate", engagementHandler.DeactivateEngagements)
+		protected.DELETE("/engagements/:id", engagementHandler.DeleteEngagement)
+		protected.GET("/reports/generate", reportHandler.GenerateReport)
+		// Kill-switch: halt/resume all agent tool execution immediately.
+		protected.POST("/agent/halt", func(c *gin.Context) { app.executor.SetHalted(true); c.JSON(http.StatusOK, gin.H{"halted": true}) })
+		protected.POST("/agent/resume", func(c *gin.Context) { app.executor.SetHalted(false); c.JSON(http.StatusOK, gin.H{"halted": false}) })
+		protected.GET("/agent/halt-status", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"halted": app.executor.Halted()}) })
 		protected.GET("/vulnerabilities", vulnerabilityHandler.ListVulnerabilities)
 		protected.GET("/vulnerabilities/stats", vulnerabilityHandler.GetVulnerabilityStats)
 		protected.GET("/vulnerabilities/:id", vulnerabilityHandler.GetVulnerability)
@@ -1415,6 +1465,8 @@ func initializeKnowledge(
 		SimilarityThreshold: cfg.Knowledge.Retrieval.SimilarityThreshold,
 		SubIndexFilter: cfg.Knowledge.Retrieval.SubIndexFilter,
 		PostRetrieve: cfg.Knowledge.Retrieval.PostRetrieve,
+		Mode: cfg.Knowledge.Retrieval.Mode,
+		RRFK: cfg.Knowledge.Retrieval.RRFK,
 	}
 	knowledgeRetriever := knowledge.NewRetriever(knowledgeDB, embedder, retrievalConfig, logger)
 	knowledgeIndexer, err := knowledge.NewIndexer(context.Background(), knowledgeDB, embedder, logger, &cfg.Knowledge)

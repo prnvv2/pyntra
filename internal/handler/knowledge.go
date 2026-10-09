@@ -465,3 +465,17 @@ func parseInt(s string) (int, error) {
 	_, err := fmt.Sscanf(s, "%d", &result)
 	return result, err
 }
+
+// GetRetrievalAnalytics returns aggregate retrieval-log analytics (T2-P5).
+func (h *KnowledgeHandler) GetRetrievalAnalytics(c *gin.Context) {
+	if h.manager == nil {
+		c.JSON(200, gin.H{"enabled": false, "total_queries": 0})
+		return
+	}
+	a, err := h.manager.GetRetrievalAnalytics(10)
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, a)
+}

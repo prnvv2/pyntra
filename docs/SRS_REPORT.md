@@ -315,7 +315,7 @@ The Pyntra system follows a modular, agent-based architecture with the following
 ### Current Configuration (config.yaml)
 - **Version:** v1.5.2
 - **Server:** Port 8080, all interfaces
-- **Authentication:** Password-based (Root@1234)
+- **Authentication:** Password-based (auto-generated strong password on first run; configurable)
 - **AI Model:** qwen2.5:7b (Ollama)
 - **Token Limit:** 8192 tokens
 - **Embedding Model:** nomic-embed-text (Ollama)

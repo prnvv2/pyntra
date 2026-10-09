@@ -13,35 +13,35 @@
   } catch (e) {}
  })();
  </script>
- <link rel="icon" type="image/svg+xml" href="/static/logo.svg">
+ <link rel="icon" type="image/svg+xml" href="/static/brand/pyntra-app-icon.svg">
  <link rel="preload" href="/static/vendor/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
  <link rel="stylesheet" href="/static/vendor/xterm/xterm.css">
- <link rel="stylesheet" href="/static/css/pages/screens.css">
- <link rel="stylesheet" href="/static/css/tokens.css">
- <link rel="stylesheet" href="/static/css/icons.css">
- <link rel="stylesheet" href="/static/css/base.css">
- <link rel="stylesheet" href="/static/css/components.css">
- <link rel="stylesheet" href="/static/css/pages/dashboard.css">
- <link rel="stylesheet" href="/static/css/pages/chat.css">
- <link rel="stylesheet" href="/static/css/pages/data.css">
- <link rel="stylesheet" href="/static/css/pages/manage.css">
+ <link rel="stylesheet" href="/static/css/pages/screens.css?v=20251009s">
+ <link rel="stylesheet" href="/static/css/tokens.css?v=20251009s">
+ <link rel="stylesheet" href="/static/css/icons.css?v=20251009s">
+ <link rel="stylesheet" href="/static/css/base.css?v=20251009s">
+ <link rel="stylesheet" href="/static/css/components.css?v=20251009s">
+ <link rel="stylesheet" href="/static/css/pages/dashboard.css?v=20251009s">
+ <link rel="stylesheet" href="/static/css/pages/chat.css?v=20251009s">
+ <link rel="stylesheet" href="/static/css/pages/data.css?v=20251009s">
+ <link rel="stylesheet" href="/static/css/pages/manage.css?v=20251009s">
 </head>
 <body>
  <div id="login-overlay" class="login-overlay" style="display: none;">
  <div class="login-card">
- <div class="login-brand">
- <div class="login-mark"><img src="/static/logo.svg" alt="" aria-hidden="true"><span>Pyntra</span></div>
- <h2 data-i18n="login.title">Sign in to Pyntra</h2>
- <p class="login-subtitle" data-i18n="login.subtitle">Enter the access password from config</p>
+ <div class="login-logo" aria-hidden="true">
+ <img class="login-logo-l" src="/static/brand/pyntra-symbol.svg" alt="" width="52" height="52">
+ <img class="login-logo-d" src="/static/brand/pyntra-symbol-dark.svg" alt="" width="52" height="52">
  </div>
+ <h2 class="login-title" data-i18n="login.title">Sign in to Pyntra</h2>
+ <p class="login-subtitle" data-i18n="login.subtitle">Security as a Service</p>
  <form id="login-form" class="login-form">
- <div class="form-group">
+ <div class="login-field">
  <label for="login-password" data-i18n="login.passwordLabel">Password</label>
- <input type="password" id="login-password" placeholder="Enter password" required autocomplete="current-password" data-i18n="login.passwordPlaceholder" data-i18n-attr="placeholder" /></div>
+ <input type="password" id="login-password" placeholder="Enter your access password" required autocomplete="current-password" autofocus />
+ </div>
  <div id="login-error" class="login-error" role="alert" style="display: none;"></div>
- <button type="submit" class="btn-primary login-submit">
- <span data-i18n="login.submit">Sign in</span>
- </button>
+ <button type="submit" class="login-submit"><span data-i18n="login.submit">Sign in</span></button>
  </form>
  </div>
  </div>
@@ -51,7 +51,7 @@
  <div class="header-content">
  <div class="header-left">
  <div class="logo header-logo-link" onclick="switchPage('dashboard')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchPage('dashboard');}" data-i18n="header.backToDashboard" data-i18n-attr="title" data-i18n-skip-text="true" title="Back to dashboard">
- <img src="/static/logo.svg" alt="" aria-hidden="true">
+ <img src="/static/brand/pyntra-app-icon.svg" alt="" aria-hidden="true" width="26" height="26">
  <h1>Pyntra</h1>
  <span class="version-badge" data-i18n="header.version" data-i18n-attr="title" data-i18n-skip-text="true" title="Current version">Current version</span>
  </div>
@@ -61,6 +61,11 @@
  <button type="button" class="openapi-doc-btn" onclick="window.open('/api-docs', '_blank')" data-i18n="header.apiDocs" data-i18n-attr="title" data-i18n-skip-text="true" title="API Docs">
  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
  <span data-i18n="header.apiDocs">API Docs</span>
+ </button>
+ <span class="header-divider" aria-hidden="true"></span>
+ <button class="killswitch-btn" id="killswitch-btn" type="button" onclick="toggleKillSwitch()" title="Halt all agent tool execution" aria-label="Halt all agent tool execution" aria-pressed="false">
+ <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="12" y1="7" x2="12" y2="13"/></svg>
+ <span id="killswitch-label" data-i18n="header.halt">Halt</span>
  </button>
  <span class="header-divider" aria-hidden="true"></span>
  <button class="theme-toggle-btn" id="theme-toggle" type="button" onclick="toggleTheme()" title="Toggle light/dark theme" aria-label="Toggle light/dark theme">
@@ -201,173 +206,84 @@
  <div class="content-area">
  <!-- Dashboardpage -->
  <div id="page-dashboard" class="page active">
- <div class="dashboard-page">
- <div class="page-header">
- <div class="page-header-main">
- <nav class="pc-breadcrumbs" aria-label="Breadcrumb"><span>Overview</span><span class="sep" aria-hidden="true">/</span><span aria-current="page">Dashboard</span></nav>
- <h2 data-i18n="dashboard.title">Dashboard</h2>
- </div>
- <div class="page-header-actions">
- <button class="btn-secondary" onclick="refreshDashboard()" data-i18n="dashboard.refreshData" data-i18n-attr="title" title="Refresh data"><span data-i18n="common.refresh">Refresh data</span></button>
- </div>
- </div>
- <div class="dashboard-content">
- <div class="dashboard-kpi-row" id="dashboard-cards">
- <div class="dashboard-kpi-card" role="button" tabindex="0" onclick="switchPage('tasks')" onkeydown="if(event.key==='Enter'||event.key===' ') { event.preventDefault(); switchPage('tasks'); }" data-i18n="dashboard.clickToViewTasks" data-i18n-attr="title" title="Click to view tasks"> <div class="dashboard-kpi-value" id="dashboard-running-tasks">Click to view tasks</div><div class="dashboard-kpi-label" data-i18n="dashboard.runningTasks">Running tasks</div></div>
- <div class="dashboard-kpi-card" role="button" tabindex="0" onclick="switchPage('vulnerabilities')" onkeydown="if(event.key==='Enter'||event.key===' ') { event.preventDefault(); switchPage('vulnerabilities'); }" data-i18n="dashboard.clickToViewVuln" data-i18n-attr="title" title="Click to view vulnerabilities"><div class="dashboard-kpi-value" id="dashboard-vuln-total">Click to view vulnerabilities</div><div class="dashboard-kpi-label" data-i18n="dashboard.vulnTotal">Total vulnerabilities</div></div>
- <div class="dashboard-kpi-card" role="button" tabindex="0" onclick="switchPage('mcp-monitor')" onkeydown="if(event.key==='Enter'||event.key===' ') { event.preventDefault(); switchPage('mcp-monitor'); }" data-i18n="dashboard.clickToViewMCP" data-i18n-attr="title" title="Click to view MCP monitor"><div class="dashboard-kpi-value" id="dashboard-kpi-tools-calls">Click to view MCP monitor</div><div class="dashboard-kpi-label" data-i18n="dashboard.toolCalls">Tool invocations</div></div>
- <div class="dashboard-kpi-card" role="button" tabindex="0" onclick="switchPage('mcp-monitor')" onkeydown="if(event.key==='Enter'||event.key===' ') { event.preventDefault(); switchPage('mcp-monitor'); }" data-i18n="dashboard.clickToViewMCP" data-i18n-attr="title" title="Click to view MCP monitor"><div class="dashboard-kpi-value" id="dashboard-kpi-success-rate">Click to view MCP monitor</div><div class="dashboard-kpi-label" data-i18n="dashboard.successRate">Tool success rate</div></div>
- </div>
- <div class="dashboard-grid">
- <div class="dashboard-main">
- <section class="dashboard-section dashboard-section-chart">
- <h3 class="dashboard-section-title" data-i18n="dashboard.severityDistribution">Vulnerability severity distribution</h3>
- <div class="dashboard-chart-wrap">
- <div class="dashboard-stacked-bar" id="dashboard-stacked-bar">
- <span class="dashboard-bar-seg seg-critical" id="dashboard-bar-critical" style="width: 0%"></span>
- <span class="dashboard-bar-seg seg-high" id="dashboard-bar-high" style="width: 0%"></span>
- <span class="dashboard-bar-seg seg-medium" id="dashboard-bar-medium" style="width: 0%"></span>
- <span class="dashboard-bar-seg seg-low" id="dashboard-bar-low" style="width: 0%"></span>
- <span class="dashboard-bar-seg seg-info" id="dashboard-bar-info" style="width: 0%"></span>
- </div>
- <div class="dashboard-legend" id="dashboard-vuln-bars">
- <div class="dashboard-legend-item"><span class="dashboard-legend-dot critical"></span><span class="dashboard-legend-label" data-i18n="dashboard.severityCritical">Critical</span><span class="dashboard-legend-value" id="dashboard-severity-critical">0</span></div>
- <div class="dashboard-legend-item"><span class="dashboard-legend-dot high"></span><span class="dashboard-legend-label" data-i18n="dashboard.severityHigh">High</span><span class="dashboard-legend-value" id="dashboard-severity-high">0</span></div>
- <div class="dashboard-legend-item"><span class="dashboard-legend-dot medium"></span><span class="dashboard-legend-label" data-i18n="dashboard.severityMedium">Medium</span><span class="dashboard-legend-value" id="dashboard-severity-medium">0</span></div>
- <div class="dashboard-legend-item"><span class="dashboard-legend-dot low"></span><span class="dashboard-legend-label" data-i18n="dashboard.severityLow">Low</span><span class="dashboard-legend-value" id="dashboard-severity-low">0</span></div>
- <div class="dashboard-legend-item"><span class="dashboard-legend-dot info"></span><span class="dashboard-legend-label" data-i18n="dashboard.severityInfo">Info</span><span class="dashboard-legend-value" id="dashboard-severity-info">0</span></div>
- </div>
- </div>
- </section>
- <section class="dashboard-section dashboard-section-overview">
- <h3 class="dashboard-section-title" data-i18n="dashboard.runOverview">Run overview</h3>
- <div class="dashboard-overview-list">
- <div class="dashboard-overview-item dashboard-overview-item-batch" role="button" tabindex="0" onclick="switchPage('tasks')" onkeydown="if(event.key==='Enter'||event.key===' ') { event.preventDefault(); switchPage('tasks'); }">
- <span class="dashboard-overview-icon dashboard-overview-icon-batch" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
- <div class="dashboard-overview-content">
- <div class="dashboard-overview-header">
- <span class="dashboard-overview-label" data-i18n="dashboard.batchQueues">Batch task queues</span>
- <span class="dashboard-overview-total" id="dashboard-batch-total">-</span>
- </div>
- <div class="dashboard-overview-stats">
- <span class="dashboard-overview-stat dashboard-overview-stat-pending">
- <span class="dashboard-overview-stat-badge badge-pending"></span>
- <span class="dashboard-overview-stat-value" id="dashboard-batch-pending">-</span>
- <span class="dashboard-overview-stat-label" data-i18n="dashboard.pending">Pending</span>
- </span>
- <span class="dashboard-overview-stat dashboard-overview-stat-running">
- <span class="dashboard-overview-stat-badge badge-running"></span>
- <span class="dashboard-overview-stat-value" id="dashboard-batch-running">-</span>
- <span class="dashboard-overview-stat-label" data-i18n="dashboard.executing">Running</span>
- </span>
- <span class="dashboard-overview-stat dashboard-overview-stat-done">
- <span class="dashboard-overview-stat-badge badge-done"></span>
- <span class="dashboard-overview-stat-value" id="dashboard-batch-done">-</span>
- <span class="dashboard-overview-stat-label" data-i18n="dashboard.completed">Completed</span>
- </span>
- </div>
- <div class="dashboard-overview-progress">
- <div class="dashboard-overview-progress-bar">
- <div class="dashboard-overview-progress-segment dashboard-overview-progress-pending" id="dashboard-batch-progress-pending" style="width: 0%"></div>
- <div class="dashboard-overview-progress-segment dashboard-overview-progress-running" id="dashboard-batch-progress-running" style="width: 0%"></div>
- <div class="dashboard-overview-progress-segment dashboard-overview-progress-done" id="dashboard-batch-progress-done" style="width: 0%"></div>
- </div>
- </div>
- </div>
- </div>
- <div class="dashboard-overview-item dashboard-overview-item-tools" role="button" tabindex="0" onclick="switchPage('mcp-monitor')" onkeydown="if(event.key==='Enter'||event.key===' ') { event.preventDefault(); switchPage('mcp-monitor'); }">
- <span class="dashboard-overview-icon dashboard-overview-icon-tools" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>
- <div class="dashboard-overview-content">
- <div class="dashboard-overview-header">
- <span class="dashboard-overview-label" data-i18n="dashboard.toolInvocations">Tool invocations</span>
- <span class="dashboard-overview-success-rate" id="dashboard-tools-success-rate">-</span>
- </div>
- <div class="dashboard-overview-value-group">
- <span class="dashboard-overview-value-large" id="dashboard-tools-calls">-</span>
- <span class="dashboard-overview-value-unit" data-i18n="dashboard.callsUnit">calls</span>
- <span class="dashboard-overview-value-separator">·</span>
- <span class="dashboard-overview-value-normal" id="dashboard-tools-count">-</span>
- <span class="dashboard-overview-value-unit" data-i18n="dashboard.toolsUnit">tools</span>
- </div>
- </div>
- </div>
- <div class="dashboard-overview-item dashboard-overview-item-knowledge" role="button" tabindex="0" onclick="switchPage('knowledge-management')" onkeydown="if(event.key==='Enter'||event.key===' ') { event.preventDefault(); switchPage('knowledge-management'); }">
- <span class="dashboard-overview-icon dashboard-overview-icon-knowledge" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg></span>
- <div class="dashboard-overview-content">
- <div class="dashboard-overview-header">
- <span class="dashboard-overview-label" data-i18n="dashboard.knowledgeLabel">Knowledge</span>
- <span class="dashboard-overview-status" id="dashboard-knowledge-status">-</span>
- </div>
- <div class="dashboard-overview-value-group">
- <span class="dashboard-overview-value-large" id="dashboard-knowledge-items">-</span>
- <span class="dashboard-overview-value-unit" data-i18n="dashboard.knowledgeItems">items</span>
- <span class="dashboard-overview-value-separator">·</span>
- <span class="dashboard-overview-value-normal" id="dashboard-knowledge-categories">-</span>
- <span class="dashboard-overview-value-unit" data-i18n="dashboard.categoriesUnit">categories</span>
- </div>
- </div>
- </div>
- <div class="dashboard-overview-item dashboard-overview-item-skills" role="button" tabindex="0" onclick="switchPage('skills-monitor')" onkeydown="if(event.key==='Enter'||event.key===' ') { event.preventDefault(); switchPage('skills-monitor'); }">
- <span class="dashboard-overview-icon dashboard-overview-icon-skills" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
- <div class="dashboard-overview-content">
- <div class="dashboard-overview-header">
- <span class="dashboard-overview-label" data-i18n="dashboard.skillsLabel">Skills</span>
- <span class="dashboard-overview-status" id="dashboard-skills-status">-</span>
- </div>
- <div class="dashboard-overview-value-group">
- <span class="dashboard-overview-value-large" id="dashboard-skills-calls">-</span>
- <span class="dashboard-overview-value-unit" data-i18n="dashboard.callsUnit">calls</span>
- <span class="dashboard-overview-value-separator">·</span>
- <span class="dashboard-overview-value-normal" id="dashboard-skills-count">-</span>
- <span class="dashboard-overview-value-unit" data-i18n="dashboard.skillUnit">Skills</span>
- </div>
- </div>
- </div>
- </div>
- </section>
- <section class="dashboard-section dashboard-section-quick dashboard-quick-inline">
- <h3 class="dashboard-section-title" data-i18n="dashboard.quickLinks">Quick links</h3>
- <div class="dashboard-quick-links dashboard-quick-links-row">
- <a class="dashboard-quick-link" onclick="switchPage('chat')"><span class="dashboard-quick-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span><span data-i18n="nav.chat">Chat</span></a>
- <a class="dashboard-quick-link" onclick="switchPage('tasks')"><span class="dashboard-quick-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg></span><span data-i18n="nav.tasks">Tasks</span></a>
- <a class="dashboard-quick-link" onclick="switchPage('vulnerabilities')"><span class="dashboard-quick-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg></span><span data-i18n="nav.vulnerabilities">Vulnerabilities</span></a>
- <a class="dashboard-quick-link" onclick="switchPage('mcp-management')"><span class="dashboard-quick-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path></svg></span><span data-i18n="nav.mcpManagement">MCP Management</span></a>
- <a class="dashboard-quick-link" onclick="switchPage('knowledge-management')"><span class="dashboard-quick-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg></span><span data-i18n="nav.knowledgeManagement">Knowledge Management</span></a>
- <a class="dashboard-quick-link" onclick="switchPage('skills-management')"><span class="dashboard-quick-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline></svg></span><span data-i18n="nav.skillsManagement">Skills Management</span></a>
- <a class="dashboard-quick-link" onclick="switchPage('roles-management')"><span class="dashboard-quick-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span><span data-i18n="nav.rolesManagement">Roles Management</span></a>
- </div>
- </section>
- </div>
- <div class="dashboard-side">
- <section class="dashboard-section dashboard-section-tools">
- <h3 class="dashboard-section-title" data-i18n="dashboard.toolsExecCount">Tool execution count</h3>
- <div class="dashboard-tools-chart-wrap">
- <div class="dashboard-tools-chart-placeholder" id="dashboard-tools-pie-placeholder" data-i18n="common.noData">No data</div>
- <div class="dashboard-tools-bar-chart" id="dashboard-tools-bar-chart"></div>
- </div>
- </section>
- </div>
- </div>
- <div class="dashboard-cta-block">
- <div class="dashboard-cta-content">
- <div class="dashboard-cta-icon" aria-hidden="true">
- <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
- </div>
- <div class="dashboard-cta-copy">
- <p class="dashboard-cta-text" data-i18n="dashboard.ctaTitle">Start your security journey</p>
- <p class="dashboard-cta-sub" data-i18n="dashboard.ctaSub">Describe your target in chat, AI will assist with scanning and vulnerability analysis</p>
- </div>
- </div>
- <button class="dashboard-cta-btn" onclick="switchPage('chat')">
- <span data-i18n="dashboard.goToChat">Go to chat</span>
- <span class="dashboard-cta-btn-arrow" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></span>
- </button>
- </div>
- </div>
+ <div class="cc">
+  <div class="cc-head">
+   <div class="cc-head-main">
+    <nav class="pc-breadcrumbs" aria-label="Breadcrumb"><span>Overview</span><span class="sep" aria-hidden="true">/</span><span aria-current="page">Command Center</span></nav>
+    <h2 class="cc-title">Command Center</h2>
+   </div>
+   <div class="cc-head-actions">
+    <span class="cc-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Live session</span>
+    <span class="cc-live" id="cc-live"><span class="cc-live-dot"></span><span id="cc-live-time">just now</span></span>
+    <button class="cc-btn-ghost" onclick="refreshDashboard()" title="Refresh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>
+    <button class="cc-btn-primary" onclick="ccExportReport()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>Export report</button>
+   </div>
+  </div>
+
+  <div class="cc-kpis">
+   <button class="cc-kpi" onclick="switchPage('tasks')"><div class="cc-kpi-top"><span class="cc-kpi-label">Running tasks</span><span class="cc-kpi-ic ic-red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span></div><div class="cc-kpi-val" id="cc-running">0</div><div class="cc-kpi-foot"><span class="cc-delta" id="cc-running-d">—</span><span class="cc-kpi-sub">vs last period</span></div></button>
+   <button class="cc-kpi" onclick="switchPage('vulnerabilities')"><div class="cc-kpi-top"><span class="cc-kpi-label">Vulnerabilities</span><span class="cc-kpi-ic ic-orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span></div><div class="cc-kpi-val" id="cc-vulns">0</div><div class="cc-kpi-foot"><span class="cc-delta" id="cc-vulns-d">—</span><span class="cc-kpi-sub">vs last period</span></div></button>
+   <button class="cc-kpi" onclick="switchPage('mcp-monitor')"><div class="cc-kpi-top"><span class="cc-kpi-label">Tool invocations</span><span class="cc-kpi-ic ic-teal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></span></div><div class="cc-kpi-val" id="cc-toolcalls">0</div><div class="cc-kpi-foot"><span class="cc-delta" id="cc-toolcalls-d">—</span><span class="cc-kpi-sub">vs last period</span></div></button>
+   <button class="cc-kpi" onclick="switchPage('mcp-monitor')"><div class="cc-kpi-top"><span class="cc-kpi-label">Tool success rate</span><span class="cc-kpi-ic ic-violet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg></span></div><div class="cc-kpi-val" id="cc-success">0</div><div class="cc-kpi-foot"><span class="cc-delta" id="cc-success-d">—</span><span class="cc-kpi-sub">vs last period</span></div></button>
+  </div>
+
+  <div class="cc-grid">
+   <div class="cc-col-main">
+    <section class="cc-card cc-chartcard">
+     <div class="cc-card-head">
+      <div>
+       <h3>Findings &amp; activity trend</h3>
+       <div class="cc-chart-big"><span class="cc-chart-total" id="cc-chart-total">0</span><span class="cc-delta" id="cc-chart-delta">—</span><span class="cc-muted">tracked this session</span></div>
+      </div>
+     </div>
+     <div class="cc-chart-wrap"><canvas id="cc-area"></canvas><div class="cc-chart-tip" id="cc-area-tip" hidden></div></div>
+    </section>
+
+    <section class="cc-card">
+     <div class="cc-card-head"><h3>Severity breakdown</h3><a class="cc-link" onclick="switchPage('vulnerabilities')">View all</a></div>
+     <div class="cc-segs" id="cc-segs"></div>
+    </section>
+
+    <section class="cc-card">
+     <div class="cc-card-head"><h3>Recent findings</h3><a class="cc-link" onclick="switchPage('vulnerabilities')">See all</a></div>
+     <div class="cc-table-wrap">
+      <table class="cc-table">
+       <thead><tr><th>Severity</th><th>Finding</th><th>Target</th><th>Status</th><th class="ta-r">When</th></tr></thead>
+       <tbody id="cc-findings-body"><tr><td colspan="5" class="cc-table-empty">No findings recorded yet</td></tr></tbody>
+      </table>
+     </div>
+    </section>
+   </div>
+
+   <div class="cc-col-side">
+    <section class="cc-card">
+     <div class="cc-card-head"><h3>Top tools</h3><span class="cc-muted" id="cc-bars-sub"></span></div>
+     <div class="cc-bars" id="cc-bars"><div class="cc-empty">No tool calls yet</div></div>
+    </section>
+
+    <section class="cc-card cc-gaugecard">
+     <div class="cc-card-head"><h3>Tool success rate</h3></div>
+     <div class="cc-gauge-wrap">
+      <canvas id="cc-gauge"></canvas>
+      <div class="cc-gauge-center"><span class="cc-gauge-val" id="cc-gauge-val">–</span><span class="cc-gauge-sub">on <b id="cc-gauge-calls">0</b> calls</span></div>
+     </div>
+     <div class="cc-gauge-foot"><span><span class="cc-dot" style="background:#16a34a"></span>Success <b id="cc-gauge-ok">0</b></span><span><span class="cc-dot" style="background:#dc2626"></span>Failed <b id="cc-gauge-fail">0</b></span></div>
+    </section>
+
+    <section class="cc-card cc-assistant">
+     <div class="cc-assist-orb"><img src="/static/brand/pyntra-symbol-dark.svg" alt="" aria-hidden="true"></div>
+     <h3>Pyntra Assistant</h3>
+     <p>Ask about findings, kick off a scan, or plan an engagement.</p>
+     <form class="cc-assist-form" onsubmit="ccAsk(event)">
+      <input id="cc-ask" type="text" placeholder="Ask me anything…" autocomplete="off" />
+      <button type="submit" aria-label="Ask"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+     </form>
+    </section>
+   </div>
+  </div>
  </div>
  </div>
 
- <!-- Chatpage -->
  <div id="page-chat" class="page">
  <div class="chat-page-layout">
  <aside class="conversation-sidebar" id="conversation-sidebar">
@@ -1226,21 +1142,29 @@
  <h4 data-i18n="settingsBasic.openaiConfig">OpenAI config</h4>
  <div class="settings-form">
  <div class="form-group">
- <label for="openai-provider">API format</label>
- <select id="openai-provider">
+ <label for="openai-provider" data-i18n="settingsBasic.provider">Provider</label>
+ <select id="openai-provider" onchange="onProviderChange()">
  <option value="openai">OpenAI-compatible</option>
  <option value="claude">Claude (Anthropic Messages API)</option>
  </select>
+ <small class="form-hint" id="openai-provider-hint"></small>
  </div>
  <div class="form-group">
  <label for="openai-base-url">Base URL <span class="required" aria-hidden="true">*</span></label>
  <input type="text" id="openai-base-url" data-i18n="settingsBasic.openaiBaseUrlPlaceholder" data-i18n-attr="placeholder" placeholder="https://api.openai.com/v1" required /></div>
- <div class="form-group">
- <label for="openai-api-key">API Key <span class="required" aria-hidden="true">*</span></label>
- <input type="password" id="openai-api-key" data-i18n="settingsBasic.openaiApiKeyPlaceholder" data-i18n-attr="placeholder" placeholder="Enter OpenAI API Key" required /></div>
+ <div class="form-group" id="openai-api-key-group">
+ <label for="openai-api-key">API Key <span class="required" aria-hidden="true" id="openai-api-key-req">*</span></label>
+ <input type="password" id="openai-api-key" data-i18n="settingsBasic.openaiApiKeyPlaceholder" data-i18n-attr="placeholder" placeholder="Enter OpenAI API Key" required />
+ <small class="form-hint" id="openai-api-key-hint" style="display:none" data-i18n="settingsBasic.apiKeyOptionalLocal">Not required for local servers — any placeholder works.</small></div>
  <div class="form-group">
  <label for="openai-model"><span data-i18n="settingsBasic.model">Model</span> <span class="required" aria-hidden="true">*</span></label>
- <input type="text" id="openai-model" data-i18n="settingsBasic.modelPlaceholder" data-i18n-attr="placeholder" placeholder="gpt-4" required /></div>
+ <div class="model-input-row">
+ <input type="text" id="openai-model" data-i18n="settingsBasic.modelPlaceholder" data-i18n-attr="placeholder" placeholder="gpt-4" required />
+ <a href="javascript:void(0)" id="fetch-models-btn" class="btn-secondary btn-small" role="button" onclick="fetchProviderModels()" data-i18n="settingsBasic.fetchModels">Fetch models</a>
+ </div>
+ <select id="openai-model-list" style="display:none" onchange="if(this.value){document.getElementById('openai-model').value=this.value;}" aria-label="Discovered models"></select>
+ <div id="openai-model-examples" class="model-examples"></div>
+ </div>
  <div class="form-group">
  <label for="openai-max-total-tokens"><span data-i18n="settingsBasic.maxTotalTokens">Max Context Tokens</span></label>
  <input type="number" id="openai-max-total-tokens" data-i18n="settingsBasic.maxTotalTokensPlaceholder" data-i18n-attr="placeholder" placeholder="120000" min="1000" step="1000" />
@@ -1798,6 +1722,7 @@
  <script src="/static/vendor/dompurify/purify.min.js"></script>
  <!-- Cytoscape.js for attack chain visualization -->
  <script src="/static/vendor/cytoscape/cytoscape.min.js"></script>
+ <script src="/static/vendor/motion/motion.js"></script>
  <!-- ELK.js for high-quality DAG layout (reduces edge crossings) -->
  <script src="/static/vendor/elkjs/elk.bundled.js"></script>
  <script>
@@ -2405,14 +2330,16 @@ Enumerate subdomains of example.com"></textarea>
  <script src="/static/js/icons.js"></script>
  <script src="/static/js/theme.js"></script>
  <script src="/static/js/i18n.js"></script>
+ <script src="/static/js/ui.js?v=20251009s"></script>
  <script src="/static/js/builtin-tools.js"></script>
  <script src="/static/js/auth.js"></script>
  <script src="/static/js/router.js"></script>
  <script src="/static/js/agents.js"></script>
- <script src="/static/js/dashboard.js"></script>
+ <script src="/static/js/dashboard.js?v=20251009s"></script>
+ <script src="/static/js/dashboard-motion.js?v=20251009s"></script>
  <script src="/static/js/monitor.js"></script>
  <script src="/static/js/chat.js"></script>
- <script src="/static/js/settings.js"></script>
+ <script src="/static/js/settings.js?v=20251009s"></script>
  <script src="/static/vendor/xterm/xterm.js"></script>
  <script src="/static/vendor/xterm-addon-fit/xterm-addon-fit.js"></script>
  <script src="/static/js/terminal.js"></script>
