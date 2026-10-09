@@ -205,25 +205,145 @@ Everything lives in `config.yaml` (created from `config.example.yaml` on first r
 
 ## 🧭 Architecture
 
-```
-┌──────────────┐   HTTP / SSE / WS   ┌───────────────────────────────────────┐
-│  Web console │◀───────────────────▶│  Gin HTTP server                      │
-│ (Command     │                     │  • Agent loop (ReAct)                 │
-│  Center)     │                     │  • Multi-agent (CloudWeGo Eino)       │
-└──────────────┘                     │  • Scope guard · kill-switch          │
-                                     │  • Knowledge (hybrid RAG · rerank)    │
-   AI coding tools ──MCP──▶          │  • Reporting · attack chains          │
-   (Claude Code, Cursor…)            └────────────────┬──────────────────────┘
-                                                      │ MCP
-                     ┌────────────────────────────────┼────────────────────────┐
-                     ▼                                 ▼                        ▼
-             Built-in tools (111)          External MCP (Burp, Ghidra)   Inference provider
-             nmap · nuclei · ffuf …        over stdio / SSE              (local or API)
+### System overview
+
+A layered Go service: a Gin HTTP/WebSocket API fronts the agent orchestration core, which reasons with the LLM, grounds itself with roles/skills/RAG, enforces engagement scope, and acts through the MCP layer onto 111 tools and external MCP servers. All state persists in SQLite.
+
+```mermaid
+flowchart TD
+    subgraph CLIENTS ["Clients"]
+        direction LR
+        W["Web Console<br/>(Command Center)"]
+        BOT["Telegram · Slack · Discord"]
+        EXT["Claude Code · Cursor · Cline<br/>opencode · Codex · Windsurf"]
+    end
+
+    subgraph CORE ["Pyntra Server (Go · Gin)"]
+        direction TB
+        API["HTTP + WebSocket API<br/>auth · sessions · streaming"]
+        ORCH["Agent Orchestration<br/>single (ReAct) · multi-agent (Eino)"]
+        GROUND["Grounding & Guardrails<br/>Roles · Skills · Knowledge RAG · Attack chains · Scope guard"]
+        MCPSRV["MCP Layer<br/>built-in server · external client manager"]
+        API --> ORCH --> GROUND
+        ORCH --> MCPSRV
+    end
+
+    subgraph MODELS ["Inference Providers"]
+        LLM["Ollama / local · OpenAI · Anthropic<br/>Hugging Face · +9 more · custom"]
+    end
+
+    subgraph TOOLS ["Capabilities"]
+        direction LR
+        BUILTIN[("111 security tools<br/>YAML-defined")]
+        EXTMCP["External MCP servers<br/>e.g. Burp Suite · Ghidra"]
+    end
+
+    DB[("SQLite<br/>findings · engagements · chains · stats · knowledge")]
+
+    W <-->|"HTTP + WS"| API
+    BOT -->|"long-poll / socket / gateway"| API
+    EXT -->|"MCP (HTTP / stdio)"| MCPSRV
+    ORCH <-->|"chat / tool-calling"| LLM
+    MCPSRV --> BUILTIN
+    MCPSRV --> EXTMCP
+    CORE --- DB
+
+    classDef core fill:#1e293b,stroke:#dc2626,stroke-width:2px,color:#e2e8f0
+    classDef ext fill:#0f172a,stroke:#f59e0b,color:#e2e8f0
+    class API,ORCH,GROUND,MCPSRV core
+    class LLM,BUILTIN,EXTMCP ext
 ```
 
-- **Backend:** Go + [Gin](https://github.com/gin-gonic/gin); multi-agent via [CloudWeGo Eino](https://github.com/cloudwego/eino); SQLite (`modernc.org/sqlite`, FTS5).
-- **Console:** no-build vanilla JS + CSS, Canvas charts, [Cytoscape](https://js.cytoscape.org/) attack graph, [Motion One](https://motion.dev).
-- Deep dives: [docs/MULTI_AGENT_EINO.md](docs/MULTI_AGENT_EINO.md) · [docs/mcp-clients.md](docs/mcp-clients.md)
+### Agent execution loop
+
+The single-agent path is a streaming **ReAct** loop: reason → call tools over MCP → observe → repeat, until the objective is met or the iteration budget is reached, at which point it summarizes. The **scope guard** and **kill-switch** gate every tool call.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant API as Gin API
+    participant Agent as AI Agent
+    participant LLM as LLM Provider
+    participant MCP as MCP Layer
+    participant Tool as Security Tool
+    participant DB as SQLite
+
+    User->>API: Objective (+ role, mode, engagement)
+    API->>Agent: Start conversation (stream)
+    Agent->>DB: Load history + attach role/skills/RAG
+    loop ReAct — until done or max_iterations
+        Agent->>LLM: Reason (context + tools)
+        LLM-->>Agent: Thought + tool_call
+        Agent->>MCP: Invoke tool(args)
+        Note over MCP: Scope guard + kill-switch check
+        MCP->>Tool: Execute (sandboxed, timeout)
+        Tool-->>MCP: Result
+        MCP-->>Agent: Observation
+        Agent-->>API: Stream progress
+        Agent->>DB: Persist step / findings
+    end
+    Agent->>LLM: Summarize findings
+    Agent-->>API: Final report + attack chain
+    API-->>User: Stream result
+```
+
+### Multi-agent orchestration
+
+For larger objectives, Pyntra decomposes work across specialized sub-agents (powered by CloudWeGo **Eino**). Pick the strategy per conversation:
+
+```mermaid
+flowchart TD
+    OBJ(["Objective"]) --> MODE{"Orchestration mode"}
+
+    MODE -->|"Deep"| D["Deep Agent<br/>orchestrator + dynamic task sub-agents"]
+    MODE -->|"Plan-Execute"| P["Planner → Executor → Replan loop"]
+    MODE -->|"Supervisor"| S["Supervisor delegates via transfer/exit"]
+
+    D --> SA["Sub-agents<br/>recon · web · exploit · general"]
+    P --> SA
+    S --> SA
+    SA --> MCP["MCP tools · skills · RAG"]
+    MCP --> OUT[/"Consolidated findings"/]
+
+    classDef mode fill:#1e293b,stroke:#8b5cf6,stroke-width:2px,color:#e2e8f0
+    class D,P,S mode
+```
+
+| Mode | Best for | How it works |
+|---|---|---|
+| **Deep** | Open-ended objectives | An orchestrator spawns task sub-agents on the fly and integrates their results. |
+| **Plan-Execute** | Well-defined multi-step goals | Plans upfront, executes step by step, and replans when reality diverges. |
+| **Supervisor** | Coordinating specialists | A supervisor routes work to named sub-agents and decides when to stop. |
+
+### MCP integration model
+
+MCP flows in **both directions**. Pyntra hosts a built-in MCP server *and* connects out to external MCP servers; AI coding tools can connect *in* to consume Pyntra's tools.
+
+```mermaid
+flowchart LR
+    subgraph IN ["Inbound — Pyntra as MCP server"]
+        direction TB
+        CC["Claude Code · Cursor · Cline<br/>opencode · Codex · Windsurf"]
+        CC -->|"HTTP /mcp or stdio"| SRV["Built-in MCP Server"]
+    end
+
+    subgraph HUB ["Pyntra core"]
+        SRV --- AG["Agent"]
+        AG --- MGR["External MCP Manager<br/>stdio · sse · http"]
+    end
+
+    subgraph OUT ["Outbound — external MCP servers"]
+        direction TB
+        MGR -->|"stdio via mcp-proxy<br/>or direct SSE"| BURP["Burp Suite<br/>MCP Server"]
+        MGR --> OTHER["Ghidra · any other MCP server"]
+    end
+
+    classDef c fill:#1e293b,stroke:#34d399,stroke-width:2px,color:#e2e8f0
+    class SRV,AG,MGR c
+```
+
+**Stack at a glance:** Go · [Gin](https://github.com/gin-gonic/gin) · Gorilla WebSocket · [CloudWeGo Eino](https://github.com/cloudwego/eino) · Model Context Protocol · `modernc.org/sqlite` (FTS5) · Zap · console: vanilla JS + Canvas + [Cytoscape](https://js.cytoscape.org/) + [Motion One](https://motion.dev). Deep dives: [docs/MULTI_AGENT_EINO.md](docs/MULTI_AGENT_EINO.md) · [docs/mcp-clients.md](docs/mcp-clients.md)
 
 ---
 
