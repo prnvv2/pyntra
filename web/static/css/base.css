@@ -951,3 +951,30 @@ header {
   .page-content { padding: var(--space-4); }
   .global-search-trigger kbd { display: none; }
 }
+
+/* ============================================================================
+   Login — redesigned (brand P, clean card, red Continue, SSO)
+   ============================================================================ */
+.login-overlay { position: fixed; inset: 0; z-index: var(--z-overlay); display: flex; align-items: center; justify-content: center; padding: var(--space-5); background: var(--surface-0); }
+.login-card { width: 100%; max-width: 420px; padding: 40px; background: var(--surface-1); border: 1px solid var(--border-1); border-radius: 18px; box-shadow: 0 1px 3px rgba(16,24,40,.06), 0 12px 40px rgba(16,24,40,.06); }
+:root[data-theme="dark"] .login-card { box-shadow: 0 1px 3px rgba(0,0,0,.5), 0 16px 48px rgba(0,0,0,.55); }
+.login-logo { margin-bottom: 22px; line-height: 0; }
+.login-logo img { width: 52px; height: 52px; }
+.login-logo-d { display: none; }
+:root[data-theme="dark"] .login-logo-l { display: none; }
+:root[data-theme="dark"] .login-logo-d { display: inline; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .login-logo-l { display: none; } :root:not([data-theme="light"]) .login-logo-d { display: inline; } }
+.login-title { font-family: "Sora", var(--font-sans); font-size: 28px; font-weight: 700; letter-spacing: -0.03em; color: var(--text-1); margin: 0 0 6px; }
+.login-subtitle { font-size: 15px; color: var(--text-2); margin: 0 0 28px; }
+.login-form { display: flex; flex-direction: column; }
+.login-field { margin-bottom: 18px; }
+.login-field label { display: block; font-size: 14px; font-weight: var(--weight-semibold); color: var(--text-1); margin-bottom: 8px; }
+.login-field input { width: 100%; height: 48px; padding: 0 16px; font-size: 15px; color: var(--text-1); background: var(--surface-1); border: 1px solid var(--border-2); border-radius: 10px; outline: none; transition: border-color var(--duration-fast), box-shadow var(--duration-fast); }
+.login-field input::placeholder { color: var(--text-3); }
+.login-field input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(var(--primary-rgb), .18); }
+.login-error { margin: -4px 0 14px; font-size: 13px; color: var(--danger); }
+.login-submit { width: 100%; height: 50px; margin-top: 6px; font-size: 15px; font-weight: var(--weight-bold); color: #fff; background: var(--primary); border: none; border-radius: 10px; cursor: pointer; transition: background var(--duration-fast), transform var(--duration-fast); }
+.login-submit:hover { background: var(--primary-hover); }
+.login-submit:active { transform: translateY(1px); }
+.login-sso { display: block; margin-top: 22px; text-align: center; font-size: 14px; font-weight: var(--weight-semibold); color: var(--primary); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.login-sso:hover { color: var(--primary-hover); }

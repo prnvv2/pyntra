@@ -1,0 +1,8 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Pyntra">
+  <!-- Pyntra app icon / favicon tile -->
+  <rect width="64" height="64" rx="14" fill="#DC2626"/>
+  <g transform="translate(9.6 9.6) scale(0.7)">
+    <path d="M18 10 V54 M34 23 V31" stroke="#FFFFFF" stroke-width="9"/>
+    <path d="M18 14 H34 A13 13 0 0 1 34 40 H26" stroke="#FFFFFF" stroke-width="9" stroke-linejoin="round"/>
+  </g>
+</svg>

@@ -1,564 +1,246 @@
-
-async function refreshDashboard() {
- const runningEl = document.getElementById('dashboard-running-tasks');
- const vulnTotalEl = document.getElementById('dashboard-vuln-total');
- const severityIds = ['critical', 'high', 'medium', 'low', 'info'];
-
- if (runningEl) runningEl.textContent = '…';
- if (vulnTotalEl) vulnTotalEl.textContent = '…';
- severityIds.forEach(s => {
- const el = document.getElementById('dashboard-severity-' + s);
- if (el) el.textContent = '0';
- const barEl = document.getElementById('dashboard-bar-' + s);
- if (barEl) barEl.style.width = '0%';
- });
- setDashboardOverviewPlaceholder('…');
- setEl('dashboard-kpi-tools-calls', '…');
- setEl('dashboard-kpi-success-rate', '…');
- var chartPlaceholder = document.getElementById('dashboard-tools-pie-placeholder');
- if (chartPlaceholder) { chartPlaceholder.style.removeProperty('display'); chartPlaceholder.textContent = (typeof window.t === 'function' ? window.t('common.loading') : 'Loading…'); }
- var barChartEl = document.getElementById('dashboard-tools-bar-chart');
- if (barChartEl) { barChartEl.style.display = 'none'; barChartEl.innerHTML = ''; }
-
- if (typeof apiFetch === 'undefined') {
- if (runningEl) runningEl.textContent = '-';
- if (vulnTotalEl) vulnTotalEl.textContent = '-';
- setDashboardOverviewPlaceholder('-');
- return;
- }
-
- try {
- const [tasksRes, vulnRes, batchRes, monitorRes, knowledgeRes, skillsRes] = await Promise.all([
- apiFetch('/api/agent-loop/tasks').then(r => r.ok ? r.json() : null).catch(() => null),
- apiFetch('/api/vulnerabilities/stats').then(r => r.ok ? r.json() : null).catch(() => null),
- apiFetch('/api/batch-tasks?limit=500&page=1').then(r => r.ok ? r.json() : null).catch(() => null),
- apiFetch('/api/monitor/stats').then(r => r.ok ? r.json() : null).catch(() => null),
- apiFetch('/api/knowledge/stats').then(r => r.ok ? r.json() : null).catch(() => null),
- apiFetch('/api/skills/stats').then(r => r.ok ? r.json() : null).catch(() => null)
- ]);
- let agentRunningCount = null;
- if (tasksRes && Array.isArray(tasksRes.tasks)) {
- agentRunningCount = tasksRes.tasks.length;
- }
- let batchRunningCount = 0;
- if (batchRes && Array.isArray(batchRes.queues)) {
- batchRes.queues.forEach(q => {
- if ((q.status || '').toLowerCase() === 'running') batchRunningCount++;
- });
- }
- if (runningEl) {
- if (agentRunningCount !== null) {
- runningEl.textContent = String(agentRunningCount + batchRunningCount);
- } else if (batchRes && Array.isArray(batchRes.queues)) {
- runningEl.textContent = String(batchRunningCount);
- } else {
- runningEl.textContent = '-';
- }
- }
-
- if (vulnRes && typeof vulnRes.total === 'number') {
- if (vulnTotalEl) vulnTotalEl.textContent = String(vulnRes.total);
- const bySeverity = vulnRes.by_severity || {};
- const total = vulnRes.total || 0;
- severityIds.forEach(sev => {
- const count = bySeverity[sev] || 0;
- const el = document.getElementById('dashboard-severity-' + sev);
- if (el) el.textContent = String(count);
- const barEl = document.getElementById('dashboard-bar-' + sev);
- if (barEl) barEl.style.width = total > 0 ? (count / total * 100) + '%' : '0%';
- });
- } else {
- if (vulnTotalEl) vulnTotalEl.textContent = '-';
- severityIds.forEach(sev => {
- const barEl = document.getElementById('dashboard-bar-' + sev);
- if (barEl) barEl.style.width = '0%';
- });
- }
- if (batchRes && Array.isArray(batchRes.queues)) {
- const queues = batchRes.queues;
- let pending = 0, running = batchRunningCount, done = 0;
- queues.forEach(q => {
- const s = (q.status || '').toLowerCase();
- if (s === 'pending' || s === 'paused') pending++;
- else if (s === 'running') { /* already counted into batchRunningCount */ }
- else if (s === 'completed' || s === 'cancelled') done++;
- });
- const total = pending + running + done;
- setEl('dashboard-batch-pending', String(pending));
- setEl('dashboard-batch-running', String(running));
- setEl('dashboard-batch-done', String(done));
- setEl('dashboard-batch-total', total > 0 ? (typeof window.t === 'function' ? window.t('dashboard.totalCount', { count: total }) : ` ${total} `) : (typeof window.t === 'function' ? window.t('dashboard.noTasks') : 'No tasks'));
- if (total > 0) {
- const pendingPct = (pending / total * 100).toFixed(1);
- const runningPct = (running / total * 100).toFixed(1);
- const donePct = (done / total * 100).toFixed(1);
- updateProgressBar('dashboard-batch-progress-pending', pendingPct);
- updateProgressBar('dashboard-batch-progress-running', runningPct);
- updateProgressBar('dashboard-batch-progress-done', donePct);
- } else {
- updateProgressBar('dashboard-batch-progress-pending', '0');
- updateProgressBar('dashboard-batch-progress-running', '0');
- updateProgressBar('dashboard-batch-progress-done', '0');
- }
- } else {
- setEl('dashboard-batch-pending', '-');
- setEl('dashboard-batch-running', '-');
- setEl('dashboard-batch-done', '-');
- setEl('dashboard-batch-total', '-');
- updateProgressBar('dashboard-batch-progress-pending', '0');
- updateProgressBar('dashboard-batch-progress-running', '0');
- updateProgressBar('dashboard-batch-progress-done', '0');
- }
- if (monitorRes && typeof monitorRes === 'object') {
- const names = Object.keys(monitorRes);
- let totalCalls = 0, totalSuccess = 0, totalFailed = 0;
- names.forEach(k => {
- const v = monitorRes[k];
- const n = v && (v.totalCalls ?? v.TotalCalls);
- if (typeof n === 'number') totalCalls += n;
- const s = v && (v.successCalls ?? v.SuccessCalls);
- if (typeof s === 'number') totalSuccess += s;
- const f = v && (v.failedCalls ?? v.FailedCalls);
- if (typeof f === 'number') totalFailed += f;
- });
- setEl('dashboard-tools-count', String(names.length));
- setEl('dashboard-tools-calls', formatNumber(totalCalls));
- setEl('dashboard-kpi-tools-calls', String(totalCalls));
- var rateStr = totalCalls > 0 ? ((totalSuccess / totalCalls) * 100).toFixed(1) + '%' : '-';
- setEl('dashboard-kpi-success-rate', rateStr);
- setEl('dashboard-tools-success-rate', rateStr !== '-' ? `Success rate ${rateStr}` : '-');
- renderDashboardToolsBar(monitorRes);
- } else {
- setEl('dashboard-tools-count', '-');
- setEl('dashboard-tools-calls', '-');
- setEl('dashboard-kpi-tools-calls', '-');
- setEl('dashboard-kpi-success-rate', '-');
- setEl('dashboard-tools-success-rate', '-');
- renderDashboardToolsBar(null);
- }
- const knowledgeItemsEl = document.getElementById('dashboard-knowledge-items');
- const knowledgeCategoriesEl = document.getElementById('dashboard-knowledge-categories');
- const knowledgeStatusEl = document.getElementById('dashboard-knowledge-status');
- if (knowledgeRes && typeof knowledgeRes === 'object') {
- if (knowledgeRes.enabled === false) {
- if (knowledgeStatusEl) knowledgeStatusEl.textContent = (typeof window.t === 'function' ? window.t('dashboard.notEnabled') : 'Disabled');
- if (knowledgeItemsEl) knowledgeItemsEl.textContent = '-';
- if (knowledgeCategoriesEl) knowledgeCategoriesEl.textContent = '-';
- } else {
- const categories = knowledgeRes.total_categories ?? 0;
- const items = knowledgeRes.total_items ?? 0;
- if (knowledgeItemsEl) knowledgeItemsEl.textContent = formatNumber(items);
- if (knowledgeCategoriesEl) knowledgeCategoriesEl.textContent = formatNumber(categories);
- if (knowledgeStatusEl) {
- if (items > 0 || categories > 0) {
- knowledgeStatusEl.textContent = (typeof window.t === 'function' ? window.t('dashboard.enabled') : 'Enabled');
- } else {
- knowledgeStatusEl.textContent = (typeof window.t === 'function' ? window.t('dashboard.toConfigure') : 'To configure');
- }
- }
- }
- } else {
- if (knowledgeItemsEl) knowledgeItemsEl.textContent = '-';
- if (knowledgeCategoriesEl) knowledgeCategoriesEl.textContent = '-';
- if (knowledgeStatusEl) knowledgeStatusEl.textContent = '-';
- }
- if (skillsRes && typeof skillsRes === 'object') {
- const totalSkills = skillsRes.total_skills ?? 0;
- const totalCalls = skillsRes.total_calls ?? 0;
- setEl('dashboard-skills-count', formatNumber(totalSkills));
- setEl('dashboard-skills-calls', formatNumber(totalCalls));
- const statusEl = document.getElementById('dashboard-skills-status');
- if (statusEl) {
- if (totalCalls === 0) {
- statusEl.textContent = (typeof window.t === 'function' ? window.t('dashboard.toUse') : 'To use');
- statusEl.style.background = 'rgba(0, 0, 0, 0.05)';
- statusEl.style.color = 'var(--text-secondary)';
- } else if (totalCalls < 10) {
- statusEl.textContent = (typeof window.t === 'function' ? window.t('dashboard.active') : 'Active');
- statusEl.style.background = 'rgba(16, 185, 129, 0.1)';
- statusEl.style.color = '#10b981';
- } else {
- statusEl.textContent = (typeof window.t === 'function' ? window.t('dashboard.highFreq') : 'High frequency');
- statusEl.style.background = 'rgba(59, 130, 246, 0.1)';
- statusEl.style.color = '#3b82f6';
- }
- }
- } else {
- setEl('dashboard-skills-count', '-');
- setEl('dashboard-skills-calls', '-');
- const statusEl = document.getElementById('dashboard-skills-status');
- if (statusEl) statusEl.textContent = '-';
- }
- } catch (e) {
- console.warn('Dashboardfailed', e);
- if (runningEl) runningEl.textContent = '-';
- if (vulnTotalEl) vulnTotalEl.textContent = '-';
- setDashboardOverviewPlaceholder('-');
- setEl('dashboard-kpi-success-rate', '-');
- setEl('dashboard-kpi-tools-calls', '-');
- renderDashboardToolsBar(null);
- var ph = document.getElementById('dashboard-tools-pie-placeholder');
- if (ph) { ph.style.removeProperty('display'); ph.textContent = (typeof window.t === 'function' ? window.t('dashboard.noCallData') : 'No call data'); }
- }
-}
-
-function setEl(id, text) {
- const el = document.getElementById(id);
- if (el) el.textContent = text;
-}
-
-function setDashboardOverviewPlaceholder(t) {
- ['dashboard-batch-pending', 'dashboard-batch-running', 'dashboard-batch-done', 'dashboard-batch-total',
- 'dashboard-tools-count', 'dashboard-tools-calls', 'dashboard-tools-success-rate',
- 'dashboard-skills-count', 'dashboard-skills-calls', 'dashboard-skills-status',
- 'dashboard-knowledge-items', 'dashboard-knowledge-categories', 'dashboard-knowledge-status'].forEach(id => setEl(id, t));
- updateProgressBar('dashboard-batch-progress-pending', '0');
- updateProgressBar('dashboard-batch-progress-running', '0');
- updateProgressBar('dashboard-batch-progress-done', '0');
-}
-function formatNumber(num) {
- if (typeof num !== 'number' || isNaN(num)) return '-';
- if (num === 0) return '0';
- return num.toLocaleString('zh-CN');
-}
-function updateProgressBar(id, percentage) {
- const el = document.getElementById(id);
- if (el) {
- const pct = parseFloat(percentage) || 0;
- el.style.width = Math.max(0, Math.min(100, pct)) + '%';
- }
-}
-var DASHBOARD_BAR_COLORS = [
- '#93c5fd', '#a78bfa', '#6ee7b7', '#fde047', '#fda4af',
- '#7dd3fc', '#a5b4fc', '#5eead4', '#fdba74', '#e9d5ff',
- '#67e8f9', '#c4b5fd', '#86efac', '#fcd34d', '#f9a8d4',
- '#bae6fd', '#c7d2fe', '#99f6e4', '#fed7aa', '#ddd6fe',
- '#22d3ee', '#8b5cf6', '#4ade80', '#fbbf24', '#fb7185',
- '#38bdf8', '#818cf8', '#2dd4bf', '#fb923c', '#e0e7ff'
-];
-
-function esc(s) {
- if (typeof s !== 'string') return '';
- return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
-}
-
-function renderDashboardToolsBar(monitorRes) {
- const placeholder = document.getElementById('dashboard-tools-pie-placeholder');
- const barChartEl = document.getElementById('dashboard-tools-bar-chart');
- if (!placeholder || !barChartEl) return;
-
- if (!monitorRes || typeof monitorRes !== 'object') {
- placeholder.style.removeProperty('display');
- placeholder.textContent = (typeof window.t === 'function' ? window.t('dashboard.noCallData') : 'No call data');
- barChartEl.style.display = 'none';
- barChartEl.innerHTML = '';
- return;
- }
-
- const entries = Object.keys(monitorRes).map(function (k) {
- const v = monitorRes[k];
- const totalCalls = v && (v.totalCalls ?? v.TotalCalls);
- return { name: k, totalCalls: typeof totalCalls === 'number' ? totalCalls : 0 };
- }).filter(function (e) { return e.totalCalls > 0; })
- .sort(function (a, b) { return b.totalCalls - a.totalCalls; })
- .slice(0, 30);
-
- if (entries.length === 0) {
- placeholder.style.removeProperty('display');
- placeholder.textContent = (typeof window.t === 'function' ? window.t('dashboard.noCallData') : 'No call data');
- barChartEl.style.display = 'none';
- barChartEl.innerHTML = '';
- return;
- }
-
- placeholder.style.display = 'none';
- barChartEl.style.display = 'block';
-
- const maxCalls = Math.max.apply(null, entries.map(function (e) { return e.totalCalls; }));
- var html = '';
- entries.forEach(function (e, i) {
- var pct = maxCalls > 0 ? (e.totalCalls / maxCalls) * 100 : 0;
- var label = e.name.length > 12 ? e.name.slice(0, 10) + '…' : e.name;
- var fullName = esc(e.name);
- html += '<div class="dashboard-tools-bar-item" data-tooltip="' + fullName + '">';
- html += '<span class="dashboard-tools-bar-label">' + esc(label) + '</span>';
- html += '<div class="dashboard-tools-bar-track"><div class="dashboard-tools-bar-fill" style="width:' + pct + '%"></div></div>';
- html += '<span class="dashboard-tools-bar-value">' + e.totalCalls + '</span>';
- html += '</div>';
- });
- barChartEl.innerHTML = html;
- attachDashboardBarTooltips(barChartEl);
-}
-
-var dashboardBarTooltipEl = null;
-var dashboardBarTooltipTimer = null;
-
-function attachDashboardBarTooltips(barChartEl) {
- if (!barChartEl) return;
- if (!dashboardBarTooltipEl) {
- dashboardBarTooltipEl = document.createElement('div');
- dashboardBarTooltipEl.className = 'dashboard-tools-bar-tooltip';
- dashboardBarTooltipEl.setAttribute('role', 'tooltip');
- document.body.appendChild(dashboardBarTooltipEl);
- }
- barChartEl.removeEventListener('mouseover', dashboardBarTooltipOnOver);
- barChartEl.removeEventListener('mouseout', dashboardBarTooltipOnOut);
- barChartEl.addEventListener('mouseover', dashboardBarTooltipOnOver);
- barChartEl.addEventListener('mouseout', dashboardBarTooltipOnOut);
-}
-
-function dashboardBarTooltipOnOver(ev) {
- var item = ev.target && ev.target.closest && ev.target.closest('.dashboard-tools-bar-item');
- if (!item || !dashboardBarTooltipEl) return;
- var text = item.getAttribute('data-tooltip');
- if (!text) return;
- clearTimeout(dashboardBarTooltipTimer);
- dashboardBarTooltipTimer = setTimeout(function () {
- dashboardBarTooltipEl.textContent = text;
- dashboardBarTooltipEl.style.display = 'block';
- requestAnimationFrame(function () {
- var rect = item.getBoundingClientRect();
- var ttRect = dashboardBarTooltipEl.getBoundingClientRect();
- var x = rect.left + (rect.width / 2) - (ttRect.width / 2);
- var y = rect.top - ttRect.height - 6;
- if (y < 8) y = rect.bottom + 6;
- var pad = 8;
- if (x < pad) x = pad;
- if (x + ttRect.width > window.innerWidth - pad) x = window.innerWidth - ttRect.width - pad;
- dashboardBarTooltipEl.style.left = x + 'px';
- dashboardBarTooltipEl.style.top = y + 'px';
- });
- }, 180);
-}
-
-function dashboardBarTooltipOnOut(ev) {
- var item = ev.target && ev.target.closest && ev.target.closest('.dashboard-tools-bar-item');
- var related = ev.relatedTarget && ev.relatedTarget.closest && ev.relatedTarget.closest('.dashboard-tools-bar-item');
- if (item && item === related) return;
- clearTimeout(dashboardBarTooltipTimer);
- dashboardBarTooltipTimer = null;
- if (dashboardBarTooltipEl) dashboardBarTooltipEl.style.display = 'none';
-}
-
-/* ============================================================
-   Enterprise motion layer (Pyntra dashboard)
-   Non-invasive: enhances the existing dashboard with count-up
-   animations, live per-KPI sparklines, an animated severity
-   donut, auto-refresh + live indicator, and card entrance.
-   All driven by the SAME real data refreshDashboard() loads.
-   ============================================================ */
+/* ============================================================================
+   Pyntra — Command Center controller (clean SaaS layout)
+   KPI cards + deltas · hero area chart (session trend) · severity segments ·
+   recent-findings table · top-tools bars · success gauge · Pyntra Assistant.
+   Entry point: refreshDashboard().
+   ============================================================================ */
 (function () {
   "use strict";
-  if (window.__pyntraDashPro) return;
-  window.__pyntraDashPro = true;
 
   var REDUCED = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  var KPI_IDS = ["dashboard-running-tasks", "dashboard-vuln-total", "dashboard-kpi-tools-calls", "dashboard-kpi-success-rate"];
-  var SEV_IDS = ["critical", "high", "medium", "low", "info"];
-  var history = {};
-  var refreshTimer = null;
+  var SEVS = ["critical", "high", "medium", "low", "info"];
+  var SEV_COLORS = { critical: "#dc2626", high: "#ea580c", medium: "#b45309", low: "#1d4ed8", info: "#475569" };
+  var SEV_LABEL = { critical: "Critical", high: "High", medium: "Medium", low: "Low", info: "Info" };
+  var prev = {};            // previous metric values (for deltas)
+  var trend = [];           // session activity history for the area chart
+  var autoTimer = null;
 
-  function cssv(n, fb) {
-    try { var v = getComputedStyle(document.documentElement).getPropertyValue(n).trim(); return v || fb; }
-    catch (e) { return fb; }
-  }
-  function sevColor(s) {
-    var fb = { critical: "#dc2626", high: "#ea580c", medium: "#d97706", low: "#2563eb", info: "#64748b" };
-    return cssv("--sev-" + s, fb[s]);
-  }
-  function parseVal(txt) {
-    if (txt == null) return null;
-    var m = String(txt).replace(/,/g, "").match(/-?\d+(\.\d+)?/);
-    return m ? parseFloat(m[0]) : null;
-  }
-  function fmt(v, pct) {
-    if (pct) return (Math.round(v * 10) / 10).toFixed(1) + "%";
-    return Math.round(v).toLocaleString();
-  }
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function cssv(n, fb) { try { var v = getComputedStyle(document.documentElement).getPropertyValue(n).trim(); return v || fb; } catch (e) { return fb; } }
+  function fmt(n) { return (typeof n === "number" && !isNaN(n)) ? n.toLocaleString(window.__locale || undefined) : "-"; }
 
-  /* count-up on the real KPI numbers */
-  function animateTo(el, target, pct) {
-    // _writing stays true for the WHOLE write (incl. across rAF frames) so the
-    // MutationObserver — which fires asynchronously — never re-triggers us.
-    if (REDUCED || (typeof el._shown === "number" && el._shown === target)) {
-      el._writing = true; el.textContent = fmt(target, pct); el._shown = target;
-      Promise.resolve().then(function () { el._writing = false; });
-      return;
-    }
-    var from = (typeof el._shown === "number") ? el._shown : 0;
-    var dur = 700, start = performance.now();
-    cancelAnimationFrame(el._raf);
-    el._writing = true;
-    function step(now) {
-      var p = Math.min(1, (now - start) / dur), e = 1 - Math.pow(1 - p, 3);
-      var v = from + (target - from) * e;
-      el.textContent = fmt(v, pct);
-      if (p < 1) { el._raf = requestAnimationFrame(step); }
-      else { el._shown = target; Promise.resolve().then(function () { el._writing = false; }); }
-    }
-    el._raf = requestAnimationFrame(step);
-  }
-  function watchKPI(id) {
-    var el = document.getElementById(id); if (!el) return;
-    var pct = id.indexOf("success-rate") > -1;
-    function handle() {
-      if (el._writing) return;
-      var val = parseVal(el.textContent.trim());
-      if (val == null) return;
-      if (val === el._shown) return;
-      pushHistory(id, val);
-      animateTo(el, val, pct);
-    }
-    new MutationObserver(handle).observe(el, { childList: true, characterData: true, subtree: true });
-    handle();
+  function countUp(el, target, suffix) {
+    if (!el) return; suffix = suffix || "";
+    if (REDUCED || typeof target !== "number") { el.textContent = (typeof target === "number" ? fmt(target) : target) + suffix; el._v = target; return; }
+    var from = typeof el._v === "number" ? el._v : 0;
+    if (from === target) { el.textContent = fmt(target) + suffix; return; }
+    var s = performance.now(); cancelAnimationFrame(el._raf);
+    (function step(now) {
+      var p = Math.min(1, (now - s) / 600), e = 1 - Math.pow(1 - p, 3);
+      el.textContent = fmt(Math.round(from + (target - from) * e)) + suffix;
+      if (p < 1) el._raf = requestAnimationFrame(step); else { el._v = target; el.textContent = fmt(target) + suffix; }
+    })(s);
   }
 
-  /* rolling sparkline history + canvas */
-  function pushHistory(id, v) {
-    (history[id] = history[id] || []).push(v);
-    if (history[id].length > 40) history[id].shift();
-    var cv = document.getElementById("spark-" + id);
-    if (cv) drawSpark(cv, history[id], id);
+  function setDelta(id, cur, key) {
+    var el = $(id); if (!el) return;
+    var p = prev[key];
+    if (typeof p !== "number" || p === cur) { el.className = "cc-delta"; el.textContent = (typeof p !== "number") ? "—" : "0%"; }
+    else {
+      var pct = p === 0 ? 100 : ((cur - p) / Math.abs(p) * 100);
+      el.className = "cc-delta " + (cur >= p ? "up" : "down");
+      el.textContent = Math.abs(pct).toFixed(pct % 1 === 0 ? 0 : 1) + "%";
+    }
+    prev[key] = cur;
   }
-  function ensureSparks() {
-    KPI_IDS.forEach(function (id) {
-      var el = document.getElementById(id); if (!el) return;
-      var card = el.closest(".dashboard-kpi-card"); if (!card || card.querySelector(".kpi-spark")) return;
-      var cv = document.createElement("canvas");
-      cv.className = "kpi-spark"; cv.id = "spark-" + id;
-      cv.setAttribute("aria-hidden", "true");
-      card.appendChild(cv);
-    });
-  }
-  function drawSpark(cv, data, id) {
-    var c = cv.getContext("2d"); if (!c) return;
-    if (!data || data.length < 2) { c.clearRect(0, 0, cv.width, cv.height); return; }
-    var dpr = window.devicePixelRatio || 1;
-    var w = cv.clientWidth || 92, h = cv.clientHeight || 30;
+
+  /* ---- Hero area chart --------------------------------------------------- */
+  var areaPts = [];
+  function drawArea() {
+    var cv = $("cc-area"); if (!cv) return;
+    var dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 600, h = cv.clientHeight || 230;
     cv.width = w * dpr; cv.height = h * dpr;
-    c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, h);
-    var color = id.indexOf("vuln") > -1 ? sevColor("critical")
-      : id.indexOf("success") > -1 ? cssv("--success-color", "#16a34a")
-      : id.indexOf("tools") > -1 ? cssv("--info-color", "#64748b")
-      : cssv("--accent-color", "#2563eb");
-    var mn = Math.min.apply(null, data), mx = Math.max.apply(null, data), rg = (mx - mn) || 1, p = 3;
-    var X = function (i) { return p + i * (w - 2 * p) / (data.length - 1); };
-    var Y = function (v) { return h - p - (v - mn) / rg * (h - 2 * p); };
-    // Flat, low-opacity area (no gradient) under a crisp line.
+    var c = cv.getContext("2d"); if (!c) return; c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, h);
+    var data = trend.length ? trend : [0, 0];
+    if (data.length < 2) data = [data[0] || 0, data[0] || 0];
+    var pad = 8, mn = Math.min.apply(null, data), mx = Math.max.apply(null, data), rg = (mx - mn) || 1;
+    var X = function (i) { return pad + i * (w - 2 * pad) / (data.length - 1); };
+    var Y = function (v) { return h - pad - (v - mn) / rg * (h - 2 * pad - 10); };
+    // gridlines
+    c.strokeStyle = cssv("--border-1", "#eee"); c.lineWidth = 1;
+    for (var g = 0; g <= 3; g++) { var gy = pad + g * (h - 2 * pad) / 3; c.beginPath(); c.moveTo(pad, gy); c.lineTo(w - pad, gy); c.globalAlpha = .5; c.stroke(); c.globalAlpha = 1; }
+    var red = cssv("--primary", "#dc2626");
+    var grad = c.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, "rgba(" + (cssv("--primary-rgb", "220,38,38")) + ",0.22)");
+    grad.addColorStop(1, "rgba(" + (cssv("--primary-rgb", "220,38,38")) + ",0.0)");
+    areaPts = [];
     c.beginPath(); c.moveTo(X(0), Y(data[0]));
     for (var i = 1; i < data.length; i++) c.lineTo(X(i), Y(data[i]));
-    c.lineTo(X(data.length - 1), h - p); c.lineTo(X(0), h - p); c.closePath(); c.fillStyle = hexA(color, 0.08); c.fill();
+    for (i = 0; i < data.length; i++) areaPts.push({ x: X(i), y: Y(data[i]), v: data[i] });
+    c.lineTo(X(data.length - 1), h - pad); c.lineTo(X(0), h - pad); c.closePath(); c.fillStyle = grad; c.fill();
     c.beginPath(); c.moveTo(X(0), Y(data[0]));
     for (i = 1; i < data.length; i++) c.lineTo(X(i), Y(data[i]));
-    c.lineWidth = 1.5; c.strokeStyle = color; c.lineJoin = "round"; c.stroke();
-    c.beginPath(); c.arc(X(data.length - 1), Y(data[data.length - 1]), 2.2, 0, 7); c.fillStyle = color; c.fill();
+    c.lineWidth = 2.5; c.strokeStyle = red; c.lineJoin = "round"; c.stroke();
+    var last = data.length - 1;
+    c.beginPath(); c.arc(X(last), Y(data[last]), 4, 0, 7); c.fillStyle = red; c.fill();
+    c.strokeStyle = cssv("--surface-1", "#fff"); c.lineWidth = 2; c.stroke();
   }
-  function hexA(hex, a) {
-    hex = String(hex).trim();
-    if (hex.charAt(0) === "#") {
-      hex = hex.slice(1); if (hex.length === 3) hex = hex.split("").map(function (ch) { return ch + ch; }).join("");
-      var n = parseInt(hex, 16); return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")";
-    }
-    return hex;
-  }
-
-  /* animated severity donut */
-  function ensureDonut() {
-    var bar = document.getElementById("dashboard-stacked-bar");
-    var wrap = bar && bar.closest(".dashboard-chart-wrap"); if (!wrap) return null;
-    if (!wrap.classList.contains("has-donut")) {
-      wrap.classList.add("has-donut");
-      var box = document.createElement("div"); box.className = "dashboard-donut-box";
-      var cv = document.createElement("canvas"); cv.id = "dashboard-donut"; cv.className = "dashboard-donut";
-      var ctr = document.createElement("div"); ctr.className = "dashboard-donut-center";
-      ctr.innerHTML = '<span class="dashboard-donut-total" id="dashboard-donut-total">0</span><span class="dashboard-donut-cap">Findings</span>';
-      box.appendChild(cv); box.appendChild(ctr);
-      wrap.insertBefore(box, wrap.firstChild);
-    }
-    return document.getElementById("dashboard-donut");
-  }
-  var donutTimer = null;
-  function drawDonut() {
-    var cv = ensureDonut(); if (!cv) return;
-    var counts = SEV_IDS.map(function (s) { var el = document.getElementById("dashboard-severity-" + s); return Math.max(0, parseVal(el && el.textContent) || 0); });
-    var total = counts.reduce(function (a, b) { return a + b; }, 0);
-    var totalEl = document.getElementById("dashboard-donut-total"); if (totalEl) totalEl.textContent = total.toLocaleString();
-    var dpr = window.devicePixelRatio || 1, S = 132;
-    cv.width = S * dpr; cv.height = S * dpr; cv.style.width = S + "px"; cv.style.height = S + "px";
-    var x = cv.getContext("2d"); if (!x) return; x.setTransform(dpr, 0, 0, dpr, 0, 0);
-    var cx = S / 2, cy = S / 2, r = S / 2 - 8, lw = 14;
-    function render(prog) {
-      x.clearRect(0, 0, S, S);
-      x.lineWidth = lw; x.lineCap = "butt";
-      x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.strokeStyle = cssv("--bg-tertiary", "#e8edf4"); x.stroke();
-      if (total === 0) return;
-      var a0 = -Math.PI / 2;
-      for (var i = 0; i < SEV_IDS.length; i++) {
-        if (!counts[i]) continue;
-        var frac = counts[i] / total, a1 = a0 + frac * Math.PI * 2 * prog;
-        x.beginPath(); x.arc(cx, cy, r, a0, a1); x.strokeStyle = sevColor(SEV_IDS[i]); x.stroke();
-        a0 = a1;
-      }
-    }
-    if (REDUCED) { render(1); return; }
-    var start = performance.now(), dur = 800;
-    (function step(now) {
-      var pr = Math.min(1, (now - start) / dur), e = 1 - Math.pow(1 - pr, 3);
-      render(e); if (pr < 1) requestAnimationFrame(step);
-    })(start);
-  }
-
-  /* live indicator + auto refresh */
-  function ensureLive() {
-    var actions = document.querySelector("#page-dashboard .page-header-actions");
-    if (!actions || document.getElementById("dashboard-live")) return;
-    var s = document.createElement("span");
-    s.id = "dashboard-live"; s.className = "dashboard-live";
-    s.innerHTML = '<span class="dashboard-live-dot"></span><span>Live</span><span class="dashboard-live-sep">/</span><span id="dashboard-live-time">just now</span>';
-    actions.insertBefore(s, actions.firstChild);
-  }
-  function markUpdated() {
-    var t = document.getElementById("dashboard-live-time");
-    if (t) t.textContent = new Date().toLocaleTimeString();
-    drawDonut();
-    KPI_IDS.forEach(function (id) { var cv = document.getElementById("spark-" + id); if (cv && history[id]) drawSpark(cv, history[id], id); });
-  }
-  function dashActive() {
-    var p = document.getElementById("page-dashboard");
-    return p && p.classList.contains("active");
-  }
-  function startAuto() {
-    if (refreshTimer) return;
-    refreshTimer = setInterval(function () {
-      if (dashActive() && !document.hidden && typeof refreshDashboard === "function") {
-        Promise.resolve(refreshDashboard()).then(markUpdated);
-      }
-    }, 15000);
-  }
-
-  function boot() {
-    ensureSparks(); ensureDonut(); ensureLive();
-    KPI_IDS.forEach(watchKPI);
-    SEV_IDS.forEach(function (s) {
-      var el = document.getElementById("dashboard-severity-" + s); if (!el) return;
-      new MutationObserver(function () { clearTimeout(donutTimer); donutTimer = setTimeout(function () { drawDonut(); }, 60); })
-        .observe(el, { childList: true, characterData: true, subtree: true });
+  function wireAreaHover() {
+    var cv = $("cc-area"), tip = $("cc-area-tip"); if (!cv || !tip || cv.__wired) return; cv.__wired = true;
+    cv.addEventListener("mousemove", function (ev) {
+      if (!areaPts.length) return;
+      var r = cv.getBoundingClientRect(), x = ev.clientX - r.left, best = areaPts[0], bd = 1e9;
+      areaPts.forEach(function (p) { var d = Math.abs(p.x - x); if (d < bd) { bd = d; best = p; } });
+      tip.hidden = false; tip.innerHTML = "<b>" + fmt(best.v) + "</b> activity";
+      tip.style.left = Math.min(Math.max(best.x - 30, 4), r.width - 90) + "px";
+      tip.style.top = Math.max(best.y - 40, 0) + "px";
     });
-    new MutationObserver(function () { setTimeout(markUpdated, 30); })
-      .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-    startAuto();
-    setTimeout(markUpdated, 400);
+    cv.addEventListener("mouseleave", function () { tip.hidden = true; });
   }
 
-  if (typeof window.refreshDashboard === "function") {
-    var orig = window.refreshDashboard;
-    window.refreshDashboard = function () {
-      var r = orig.apply(this, arguments);
-      Promise.resolve(r).then(function () { setTimeout(markUpdated, 50); });
-      return r;
-    };
+  /* ---- Severity segments ------------------------------------------------- */
+  function renderSegs(counts, total) {
+    var box = $("cc-segs"); if (!box) return;
+    box.innerHTML = SEVS.map(function (s) {
+      var v = counts[s] || 0, pct = total > 0 ? (v / total * 100) : 0;
+      return '<div class="cc-seg"><div class="cc-seg-top"><span class="cc-dot" style="background:' + SEV_COLORS[s] + '"></span>' + SEV_LABEL[s] + '</div>' +
+        '<div class="cc-seg-val">' + v + '</div>' +
+        '<div class="cc-seg-bar"><span style="width:' + pct + '%;background:' + SEV_COLORS[s] + '"></span></div></div>';
+    }).join("");
   }
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
-  else boot();
+  /* ---- Recent findings table -------------------------------------------- */
+  function timeAgo(iso) { if (!iso) return ""; var t = new Date(iso).getTime(); if (isNaN(t)) return ""; var s = Math.max(0, (Date.now() - t) / 1000); if (s < 60) return Math.floor(s) + "s ago"; if (s < 3600) return Math.floor(s / 60) + "m ago"; if (s < 86400) return Math.floor(s / 3600) + "h ago"; return Math.floor(s / 86400) + "d ago"; }
+  function renderFindings(items) {
+    var body = $("cc-findings-body"); if (!body) return;
+    if (!items || !items.length) { body.innerHTML = '<tr><td colspan="5" class="cc-table-empty">No findings recorded yet</td></tr>'; return; }
+    body.innerHTML = items.slice(0, 6).map(function (v) {
+      var sev = String(v.severity || "info").toLowerCase();
+      return '<tr onclick="switchPage(\'vulnerabilities\')">' +
+        '<td><span class="cc-sev-badge cc-sev-' + sev + '">' + (SEV_LABEL[sev] || "Info") + '</span></td>' +
+        '<td class="cc-f-title">' + esc(v.title || "(finding)") + '</td>' +
+        '<td class="cc-f-target">' + esc(v.target || "—") + '</td>' +
+        '<td><span class="cc-status">' + esc(v.status || "open") + '</span></td>' +
+        '<td class="ta-r cc-f-when">' + timeAgo(v.created_at || v.createdAt) + '</td></tr>';
+    }).join("");
+  }
+
+  /* ---- Top tools bars ---------------------------------------------------- */
+  function renderBars(monitor) {
+    var box = $("cc-bars"), sub = $("cc-bars-sub"); if (!box) return;
+    var entries = Object.keys(monitor || {}).map(function (k) { var v = monitor[k]; return { name: k, calls: (v && (v.totalCalls != null ? v.totalCalls : v.TotalCalls)) || 0 }; })
+      .filter(function (e) { return e.calls > 0; }).sort(function (a, b) { return b.calls - a.calls; }).slice(0, 7);
+    if (!entries.length) { box.innerHTML = '<div class="cc-empty">No tool calls yet</div>'; if (sub) sub.textContent = ""; return; }
+    if (sub) sub.textContent = "by calls";
+    var max = entries[0].calls;
+    box.innerHTML = entries.map(function (e, i) {
+      var pct = max > 0 ? Math.max(6, e.calls / max * 100) : 6;
+      var short = e.name.length > 7 ? e.name.slice(0, 6) + "…" : e.name;
+      return '<div class="cc-bar' + (i === 0 ? " is-top" : "") + '" title="' + esc(e.name) + ' · ' + e.calls + '">' +
+        '<span class="cc-bar-val">' + e.calls + '</span>' +
+        '<div class="cc-bar-track" style="height:100%"><div class="cc-bar-fill" style="height:' + pct + '%"></div></div>' +
+        '<span class="cc-bar-label">' + esc(short) + '</span></div>';
+    }).join("");
+  }
+
+  /* ---- Success gauge (semicircular) ------------------------------------- */
+  function drawGauge(pct, calls) {
+    var cv = $("cc-gauge"); if (!cv) return;
+    var dpr = window.devicePixelRatio || 1, W = 220, H = 130;
+    cv.width = W * dpr; cv.height = H * dpr; cv.style.width = W + "px"; cv.style.height = H + "px";
+    var x = cv.getContext("2d"); if (!x) return; x.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var cx = W / 2, cy = H - 8, r = 92, lw = 14, target = Math.max(0, Math.min(100, pct || 0)) / 100;
+    function render(p) {
+      x.clearRect(0, 0, W, H); x.lineCap = "round";
+      // track
+      x.lineWidth = lw; x.beginPath(); x.arc(cx, cy, r, Math.PI, Math.PI * 2); x.strokeStyle = cssv("--surface-3", "#eee"); x.stroke();
+      if (calls <= 0) return;
+      var g = x.createLinearGradient(cx - r, 0, cx + r, 0);
+      g.addColorStop(0, "#16a34a"); g.addColorStop(1, cssv("--primary", "#dc2626"));
+      x.beginPath(); x.arc(cx, cy, r, Math.PI, Math.PI + Math.PI * target * p); x.strokeStyle = g; x.stroke();
+    }
+    if (REDUCED) { render(1); } else { var s = performance.now(); (function step(now) { var pr = Math.min(1, (now - s) / 850), e = 1 - Math.pow(1 - pr, 3); render(e); if (pr < 1) requestAnimationFrame(step); })(s); }
+  }
+
+  /* ---- Engine (feeds assistant subtitle only; no strip now) ------------- */
+
+  /* ---- Main refresh ------------------------------------------------------ */
+  async function refreshDashboard() {
+    if (typeof apiFetch === "undefined") return;
+    markLive();
+    try {
+      var res = await Promise.all([
+        apiFetch("/api/agent-loop/tasks").then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }),
+        apiFetch("/api/vulnerabilities/stats").then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }),
+        apiFetch("/api/batch-tasks?limit=500&page=1").then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }),
+        apiFetch("/api/monitor/stats").then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }),
+        apiFetch("/api/vulnerabilities?limit=8&page=1").then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })
+      ]);
+      var tasks = res[0], vuln = res[1], batch = res[2], monitor = res[3], vulnList = res[4];
+
+      var running = (tasks && Array.isArray(tasks.tasks)) ? tasks.tasks.length : 0;
+      if (batch && Array.isArray(batch.queues)) batch.queues.forEach(function (q) { if ((q.status || "").toLowerCase() === "running") running++; });
+      countUp($("cc-running"), running); setDelta("cc-running-d", running, "running");
+
+      var counts = {}, vtotal = (vuln && typeof vuln.total === "number") ? vuln.total : 0, bySev = (vuln && vuln.by_severity) || {};
+      SEVS.forEach(function (s) { counts[s] = bySev[s] || 0; });
+      countUp($("cc-vulns"), vtotal); setDelta("cc-vulns-d", vtotal, "vulns");
+      renderSegs(counts, vtotal);
+
+      var totalCalls = 0, ok = 0, fail = 0;
+      if (monitor && typeof monitor === "object") Object.keys(monitor).forEach(function (k) {
+        var v = monitor[k];
+        totalCalls += (v && (v.totalCalls != null ? v.totalCalls : v.TotalCalls)) || 0;
+        ok += (v && (v.successCalls != null ? v.successCalls : v.SuccessCalls)) || 0;
+        fail += (v && (v.failedCalls != null ? v.failedCalls : v.FailedCalls)) || 0;
+      });
+      countUp($("cc-toolcalls"), totalCalls); setDelta("cc-toolcalls-d", totalCalls, "toolcalls");
+      var rate = totalCalls > 0 ? (ok / totalCalls * 100) : 0;
+      var sEl = $("cc-success"); if (sEl) { sEl.textContent = totalCalls > 0 ? rate.toFixed(1) + "%" : "–"; }
+      setDelta("cc-success-d", Math.round(rate), "success");
+      if ($("cc-gauge-val")) $("cc-gauge-val").textContent = totalCalls > 0 ? Math.round(rate) + "%" : "–";
+      if ($("cc-gauge-calls")) $("cc-gauge-calls").textContent = fmt(totalCalls);
+      if ($("cc-gauge-ok")) $("cc-gauge-ok").textContent = fmt(ok);
+      if ($("cc-gauge-fail")) $("cc-gauge-fail").textContent = fmt(fail);
+      drawGauge(rate, totalCalls);
+      renderBars(monitor);
+
+      // trend = session activity (tool calls + findings)
+      trend.push(totalCalls + vtotal); if (trend.length > 40) trend.shift();
+      if ($("cc-chart-total")) countUp($("cc-chart-total"), totalCalls + vtotal);
+      setDelta("cc-chart-delta", totalCalls + vtotal, "trend");
+      drawArea(); wireAreaHover();
+
+      renderFindings(vulnList && (vulnList.vulnerabilities || []) || []);
+    } catch (e) { /* keep prior */ }
+  }
+
+  function markLive() { var t = $("cc-live-time"); if (t) t.textContent = new Date().toLocaleTimeString(); }
+  function dashActive() { var p = $("page-dashboard"); return p && p.classList.contains("active"); }
+  function startAuto() { if (autoTimer) return; autoTimer = setInterval(function () { if (dashActive() && !document.hidden) refreshDashboard(); }, 15000); }
+
+  // Assistant → route question into chat
+  window.ccAsk = function (ev) {
+    if (ev && ev.preventDefault) ev.preventDefault();
+    var inp = $("cc-ask"); var q = inp ? inp.value.trim() : "";
+    if (typeof switchPage === "function") switchPage("chat");
+    setTimeout(function () {
+      var box = document.querySelector("#page-chat textarea, #page-chat input[type=text]");
+      if (box && q) { box.value = q; box.focus(); box.dispatchEvent(new Event("input", { bubbles: true })); }
+      else if (box) { box.focus(); }
+    }, 180);
+    if (inp) inp.value = "";
+  };
+
+  // Export report → authenticated download
+  window.ccExportReport = async function () {
+    if (typeof apiFetch === "undefined") return;
+    try {
+      var r = await apiFetch("/api/reports/generate?format=md");
+      var text = await r.text();
+      var blob = new Blob([text], { type: "text/markdown" });
+      var url = URL.createObjectURL(blob), a = document.createElement("a");
+      a.href = url; a.download = "pyntra-report.md"; document.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 1000);
+      if (window.pyToast) window.pyToast("Report downloaded", { type: "success" });
+    } catch (e) { if (window.pyToast) window.pyToast("Export failed: " + e.message, { type: "danger" }); }
+  };
+
+  new MutationObserver(function () { if (dashActive()) setTimeout(function () { drawArea(); }, 60); })
+    .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  window.addEventListener("resize", function () { if (dashActive()) drawArea(); });
+
+  window.refreshDashboard = refreshDashboard;
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", startAuto); else startAuto();
 })();

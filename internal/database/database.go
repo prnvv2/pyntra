@@ -352,6 +352,10 @@ func (db *DB) initTables() error {
 		return fmt.Errorf("failed to create webshell_connection_states table: %w", err)
 	}
 
+	if _, err := db.Exec(createEngagementsTable); err != nil {
+		return fmt.Errorf("failed to create engagements table: %w", err)
+	}
+
 	// Add new fields to existing tables (if they don't exist) - must be done before creating indexes
 	if err := db.migrateConversationsTable(); err != nil {
 		db.logger.Warn("failed to migrate conversations table", zap.Error(err))

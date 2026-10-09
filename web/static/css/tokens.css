@@ -54,7 +54,7 @@
   --slate-900: #131922;
   --slate-950: #0d1117;
 
-  /* ---- Primitive ramp: Indigo (the single restrained primary) ------------ */
+  /* ---- Primitive ramp: Indigo (legacy; retained for back-compat) --------- */
   --indigo-50:  #eef1ff;
   --indigo-100: #e0e5ff;
   --indigo-200: #c6cfff;
@@ -64,6 +64,20 @@
   --indigo-600: #4f46e5;
   --indigo-700: #4338ca;
   --indigo-800: #3730a3;
+
+  /* ---- Primitive ramp: Brand Red (the single restrained primary) ---------
+     A warm vermilion, kept deliberately distinct from the cooler/darker
+     danger & critical reds below so a primary button never reads as
+     destructive and a Critical finding keeps its own alarm color. */
+  --brand-50:  #fff1f1;
+  --brand-100: #ffe0e0;
+  --brand-200: #fec8c8;
+  --brand-300: #fba3a3;
+  --brand-400: #f66e6e;
+  --brand-500: #ef4444;
+  --brand-600: #dc2626;
+  --brand-700: #b91c1c;
+  --brand-800: #911717;
 
   /* ---- Primitive ramp: semantic hues ------------------------------------- */
   --red-500:    #dc2626;  --red-600:  #b91c1c;
@@ -77,8 +91,8 @@
      SEMANTIC TOKENS — LIGHT
      ========================================================================= */
 
-  /* Surfaces (0 = app background, ascending = raised) */
-  --surface-0: var(--slate-100);   /* app canvas */
+  /* Surfaces (0 = app background, ascending = raised) — white theme */
+  --surface-0: #f6f7f9;            /* app canvas (near-white, separates cards) */
   --surface-1: #ffffff;            /* primary content surface / cards */
   --surface-2: var(--slate-50);    /* subtle panels, table headers */
   --surface-3: var(--slate-100);   /* insets, code wells */
@@ -98,16 +112,16 @@
   /* Borders */
   --border-1: var(--slate-200);    /* default hairline */
   --border-2: var(--slate-300);    /* stronger / interactive */
-  --border-focus: var(--indigo-500);
+  --border-focus: var(--brand-500);
 
-  /* Primary (single accent) */
-  --primary: var(--indigo-600);
-  --primary-hover: var(--indigo-700);
-  --primary-active: var(--indigo-800);
-  --primary-subtle: var(--indigo-50);
-  --primary-subtle-border: var(--indigo-200);
+  /* Primary (single accent — brand red) */
+  --primary: var(--brand-600);
+  --primary-hover: var(--brand-700);
+  --primary-active: var(--brand-800);
+  --primary-subtle: var(--brand-50);
+  --primary-subtle-border: var(--brand-200);
   --primary-on: #ffffff;
-  --primary-rgb: 79, 70, 229;
+  --primary-rgb: 220, 38, 38;
 
   /* Status (task / run lifecycle) */
   --status-running:   var(--blue-500);
@@ -278,33 +292,33 @@
    scoped to :root:not([data-theme="light"]).
    =========================================================================== */
 :root[data-theme="dark"] {
-  --surface-0: var(--slate-950);
-  --surface-1: var(--slate-900);
-  --surface-2: var(--slate-850);
-  --surface-3: var(--slate-800);
-  --surface-hover: #1b2330;
-  --surface-active: #212a38;
-  --surface-inverse: var(--slate-50);
-  --overlay-scrim: rgba(3, 6, 12, 0.62);
+  --surface-0: #000000;
+  --surface-1: #0d0d0d;
+  --surface-2: #141414;
+  --surface-3: #1c1c1c;
+  --surface-hover: #1a1a1a;
+  --surface-active: #232323;
+  --surface-inverse: #f5f5f5;
+  --overlay-scrim: rgba(0, 0, 0, 0.66);
 
-  --text-1: #e7ecf3;
-  --text-2: #a3adba;
-  --text-3: #7a8598;
-  --text-disabled: #5a6473;
+  --text-1: #ededed;
+  --text-2: #a1a1a1;
+  --text-3: #767676;
+  --text-disabled: #555555;
   --text-on-primary: #ffffff;
   --text-on-inverse: var(--slate-900);
 
-  --border-1: #262f3d;
-  --border-2: #38424f;
-  --border-focus: var(--indigo-400);
+  --border-1: #262626;
+  --border-2: #383838;
+  --border-focus: #f0575c;
 
-  --primary: var(--indigo-500);
-  --primary-hover: var(--indigo-400);
-  --primary-active: var(--indigo-300);
-  --primary-subtle: rgba(95, 102, 236, 0.14);
-  --primary-subtle-border: rgba(95, 102, 236, 0.35);
+  --primary: #f0575c;
+  --primary-hover: #f47a7e;
+  --primary-active: #f89a9d;
+  --primary-subtle: rgba(240, 87, 92, 0.15);
+  --primary-subtle-border: rgba(240, 87, 92, 0.38);
   --primary-on: #ffffff;
-  --primary-rgb: 95, 102, 236;
+  --primary-rgb: 240, 87, 92;
 
   --status-running:   #4c8dff;
   --status-completed: #38b76a;
@@ -339,31 +353,31 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --surface-0: var(--slate-950);
-    --surface-1: var(--slate-900);
-    --surface-2: var(--slate-850);
-    --surface-3: var(--slate-800);
-    --surface-hover: #1b2330;
-    --surface-active: #212a38;
-    --surface-inverse: var(--slate-50);
-    --overlay-scrim: rgba(3, 6, 12, 0.62);
+    --surface-0: #000000;
+    --surface-1: #0d0d0d;
+    --surface-2: #141414;
+    --surface-3: #1c1c1c;
+    --surface-hover: #1a1a1a;
+    --surface-active: #232323;
+    --surface-inverse: #f5f5f5;
+    --overlay-scrim: rgba(0, 0, 0, 0.72);
 
-    --text-1: #e7ecf3;
-    --text-2: #a3adba;
-    --text-3: #7a8598;
-    --text-disabled: #5a6473;
-    --text-on-inverse: var(--slate-900);
+    --text-1: #ededed;
+    --text-2: #a1a1a1;
+    --text-3: #767676;
+    --text-disabled: #555555;
+    --text-on-inverse: #0a0a0a;
 
-    --border-1: #262f3d;
-    --border-2: #38424f;
-    --border-focus: var(--indigo-400);
+    --border-1: #262626;
+    --border-2: #383838;
+    --border-focus: #f0575c;
 
-    --primary: var(--indigo-500);
-    --primary-hover: var(--indigo-400);
-    --primary-active: var(--indigo-300);
-    --primary-subtle: rgba(95, 102, 236, 0.14);
-    --primary-subtle-border: rgba(95, 102, 236, 0.35);
-    --primary-rgb: 95, 102, 236;
+    --primary: #f0575c;
+    --primary-hover: #f47a7e;
+    --primary-active: #f89a9d;
+    --primary-subtle: rgba(240, 87, 92, 0.15);
+    --primary-subtle-border: rgba(240, 87, 92, 0.38);
+    --primary-rgb: 240, 87, 92;
 
     --status-running:   #4c8dff;
     --status-completed: #38b76a;

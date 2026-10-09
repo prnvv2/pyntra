@@ -218,15 +218,32 @@ func (h *ConfigHandler) GetConfig(c *gin.Context) {
 		multiPub.DefaultMode = "single"
 	}
 
+	// Redact secrets before sending config to the client. The real api_key must
+	// never leave the server; a non-empty key is replaced with apiKeyMask. On
+	// save, an incoming value equal to the mask means "keep the stored key"
+	// (see UpdateConfig / TestOpenAI).
+	openaiRedacted := h.config.OpenAI
+	if openaiRedacted.APIKey != "" {
+		openaiRedacted.APIKey = apiKeyMask
+	}
+	knowledgeRedacted := h.config.Knowledge
+	if knowledgeRedacted.Embedding.APIKey != "" {
+		knowledgeRedacted.Embedding.APIKey = apiKeyMask
+	}
+
 	c.JSON(http.StatusOK, GetConfigResponse{
-		OpenAI: h.config.OpenAI,
+		OpenAI: openaiRedacted,
 		MCP: h.config.MCP,
 		Tools: tools,
 		Agent: h.config.Agent,
-		Knowledge: h.config.Knowledge,
+		Knowledge: knowledgeRedacted,
 		MultiAgent: multiPub,
 	})
 }
+
+// apiKeyMask is the placeholder returned to clients in place of a stored API
+// key. When the client sends this value back on save, the existing key is kept.
+const apiKeyMask = "********"
 
 // GetToolsResponse gettoollistresponse(pagination)
 type GetToolsResponse struct {
@@ -488,6 +505,16 @@ func (h *ConfigHandler) UpdateConfig(c *gin.Context) {
 
 	// updateOpenAIconfigure
 	if req.OpenAI != nil {
+		// Refuse to store a config that would send the API key in cleartext to a
+		// remote host (plain http to a non-local address).
+		if config.IsInsecureRemoteBaseURL(req.OpenAI.BaseURL) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "insecure base_url: refusing to send the API key over plain http to a remote host — use https:// (http is allowed only for localhost/private endpoints)"})
+			return
+		}
+		// A masked api_key means the client never saw the real one; keep it.
+		if req.OpenAI.APIKey == apiKeyMask {
+			req.OpenAI.APIKey = h.config.OpenAI.APIKey
+		}
 		h.config.OpenAI = *req.OpenAI
 		h.logger.Info("updateOpenAIconfigure",
 			zap.String("base_url", h.config.OpenAI.BaseURL),
@@ -515,6 +542,10 @@ func (h *ConfigHandler) UpdateConfig(c *gin.Context) {
 
 	// updateKnowledgeconfigure
 	if req.Knowledge != nil {
+		// A masked embedding api_key means the client never saw the real one; keep it.
+		if req.Knowledge.Embedding.APIKey == apiKeyMask {
+			req.Knowledge.Embedding.APIKey = h.config.Knowledge.Embedding.APIKey
+		}
 		if h.config.Knowledge.Enabled {
 			h.lastEmbeddingConfig = &config.EmbeddingConfig{
 				Provider: h.config.Knowledge.Embedding.Provider,
@@ -662,6 +693,13 @@ func (h *ConfigHandler) TestOpenAI(c *gin.Context) {
 		return
 	}
 
+	// If the client sent the mask, it never saw the real key — test with the stored one.
+	if strings.TrimSpace(req.APIKey) == apiKeyMask {
+		h.mu.RLock()
+		req.APIKey = h.config.OpenAI.APIKey
+		h.mu.RUnlock()
+	}
+
 	if strings.TrimSpace(req.APIKey) == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "API Key cannot be empty"})
 		return
@@ -678,6 +716,10 @@ func (h *ConfigHandler) TestOpenAI(c *gin.Context) {
 		} else {
 			baseURL = "https://api.openai.com/v1"
 		}
+	}
+	if config.IsInsecureRemoteBaseURL(baseURL) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "insecure base_url: refusing to send the API key over plain http to a remote host — use https://"})
+		return
 	}
 	payload := map[string]interface{}{
 		"model": req.Model,

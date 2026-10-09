@@ -68,22 +68,11 @@ async function loadConfig(loadTools = true) {
  }
  
  currentConfig = await response.json();
- const providerEl = document.getElementById('openai-provider');
- if (providerEl) {
- const providerVal = currentConfig.openai.provider || 'openai';
- // Keep the configured provider selectable so saving round-trips it unchanged
- // (e.g. "ollama" from config.yaml is not one of the two built-in options).
- if (!Array.from(providerEl.options).some(o => o.value === providerVal)) {
- const opt = document.createElement('option');
- opt.value = providerVal;
- opt.textContent = providerVal + ' (from config)';
- providerEl.appendChild(opt);
- }
- providerEl.value = providerVal;
- }
  document.getElementById('openai-api-key').value = currentConfig.openai.api_key || '';
  document.getElementById('openai-base-url').value = currentConfig.openai.base_url || '';
  document.getElementById('openai-model').value = currentConfig.openai.model || '';
+ // Populate the full provider catalogue from the backend, selecting the current one.
+ await populateProviders(currentConfig.openai.provider || 'openai');
  const maxTokensEl = document.getElementById('openai-max-total-tokens');
  if (maxTokensEl) {
  maxTokensEl.value = currentConfig.openai.max_total_tokens || 120000;
@@ -611,13 +600,17 @@ async function applySettings() {
  input.classList.remove('error');
  });
  const provider = document.getElementById('openai-provider')?.value || 'openai';
- const apiKey = document.getElementById('openai-api-key').value.trim();
+ let apiKey = document.getElementById('openai-api-key').value.trim();
  const baseUrl = document.getElementById('openai-base-url').value.trim();
  const model = document.getElementById('openai-model').value.trim();
- 
+ // Local / keyless providers (Ollama, LM Studio, vLLM, LocalAI) don't need a real key.
+ const preset = (window.__providerCatalogue || []).find(p => p.id === provider);
+ const keyless = preset && preset.api_key_required === false;
+ if (keyless && !apiKey) apiKey = provider; // harmless placeholder the endpoint ignores
+
  let hasError = false;
- 
- if (!apiKey) {
+
+ if (!apiKey && !keyless) {
  document.getElementById('openai-api-key').classList.add('error');
  hasError = true;
  }
@@ -1573,3 +1566,120 @@ document.addEventListener('languagechange', function () {
  console.warn('languagechange MCP refresh failed', e);
  }
 });
+
+/* =========================================================================
+   Provider catalogue (T1-P1): full provider picker + local model discovery.
+   Backed by GET /api/config/providers and POST /api/config/provider-models.
+   ========================================================================= */
+window.__providerCatalogue = window.__providerCatalogue || [];
+
+async function populateProviders(currentId) {
+  const sel = document.getElementById('openai-provider');
+  if (!sel) return;
+  try {
+    const res = await apiFetch('/api/config/providers');
+    if (res.ok) {
+      const data = await res.json();
+      window.__providerCatalogue = Array.isArray(data.providers) ? data.providers : [];
+    }
+  } catch (e) { /* keep built-in options on failure */ }
+
+  const cat = window.__providerCatalogue;
+  if (cat.length) {
+    sel.innerHTML = '';
+    cat.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.label + (p.local ? ' · local' : '');
+      sel.appendChild(opt);
+    });
+  }
+  // Preserve a configured id that isn't in the catalogue (e.g. a custom alias).
+  if (currentId && !Array.from(sel.options).some(o => o.value === currentId)) {
+    const opt = document.createElement('option');
+    opt.value = currentId;
+    opt.textContent = currentId + ' (from config)';
+    sel.appendChild(opt);
+  }
+  sel.value = currentId || 'openai';
+  onProviderChange(true);
+}
+
+function currentProviderPreset() {
+  const id = (document.getElementById('openai-provider') || {}).value;
+  return (window.__providerCatalogue || []).find(p => p.id === id) || null;
+}
+
+function onProviderChange(isInitial) {
+  const preset = currentProviderPreset();
+  const hint = document.getElementById('openai-provider-hint');
+  const keyInput = document.getElementById('openai-api-key');
+  const keyReq = document.getElementById('openai-api-key-req');
+  const keyHint = document.getElementById('openai-api-key-hint');
+
+  if (hint) hint.textContent = preset ? (preset.notes || '') : '';
+
+  // Local / keyless providers: API key optional.
+  const keyless = preset && preset.api_key_required === false;
+  if (keyReq) keyReq.style.display = keyless ? 'none' : '';
+  if (keyHint) keyHint.style.display = keyless ? '' : 'none';
+  if (keyInput) keyInput.required = !keyless;
+
+  if (!isInitial && preset) {
+    // User switched provider: adopt its suggested base_url and reset model.
+    if (preset.base_url) document.getElementById('openai-base-url').value = preset.base_url;
+    const modelEl = document.getElementById('openai-model');
+    if (modelEl) modelEl.value = '';
+    if (keyless && keyInput && !keyInput.value.trim()) keyInput.value = preset.id;
+    const list = document.getElementById('openai-model-list');
+    if (list) { list.style.display = 'none'; list.innerHTML = ''; }
+  }
+  renderModelExamples(preset ? (preset.example_models || []) : []);
+}
+
+function renderModelExamples(models) {
+  const box = document.getElementById('openai-model-examples');
+  if (!box) return;
+  box.innerHTML = '';
+  (models || []).forEach(m => {
+    if (!m || m.indexOf('<') === 0) return; // skip placeholders like <loaded-model-id>
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'model-example-chip';
+    chip.textContent = m;
+    chip.onclick = () => { document.getElementById('openai-model').value = m; };
+    box.appendChild(chip);
+  });
+}
+
+async function fetchProviderModels() {
+  const btn = document.getElementById('fetch-models-btn');
+  const list = document.getElementById('openai-model-list');
+  const provider = (document.getElementById('openai-provider') || {}).value || '';
+  const baseUrl = document.getElementById('openai-base-url').value.trim();
+  const apiKey = document.getElementById('openai-api-key').value.trim();
+  if (btn) { btn.classList.add('is-loading'); btn.textContent = (typeof window.t === 'function' ? window.t('common.loading') : 'Loading…'); }
+  try {
+    const res = await apiFetch('/api/config/provider-models', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider, base_url: baseUrl, api_key: apiKey })
+    });
+    const data = await res.json();
+    if (data && data.ok && Array.isArray(data.models) && data.models.length && list) {
+      list.innerHTML = '<option value="">' + (typeof window.t === 'function' ? window.t('settingsBasic.selectModel') : 'Select a discovered model…') + '</option>';
+      data.models.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m; opt.textContent = m;
+        list.appendChild(opt);
+      });
+      list.style.display = '';
+    } else {
+      alert((typeof window.t === 'function' ? window.t('settingsBasic.noModelsFound') : 'No models found') + (data && data.error ? ': ' + data.error : ''));
+    }
+  } catch (e) {
+    alert('Failed to fetch models: ' + e.message);
+  } finally {
+    if (btn) { btn.classList.remove('is-loading'); btn.textContent = (typeof window.t === 'function' ? window.t('settingsBasic.fetchModels') : 'Fetch models'); }
+  }
+}

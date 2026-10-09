@@ -38,7 +38,7 @@ func (m *Manager) ScanKnowledgeBase() ([]string, error) {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() || !strings.HasSuffix(strings.ToLower(path), ".md") {
+		if d.IsDir() || !isIngestibleKnowledgeFile(path) {
 			return nil
 		}
 		relPath, err := filepath.Rel(m.basePath, path)
@@ -50,7 +50,8 @@ func (m *Manager) ScanKnowledgeBase() ([]string, error) {
 		if len(parts) > 1 {
 			category = parts[0]
 		}
-		title := strings.TrimSuffix(filepath.Base(path), ".md")
+		base := filepath.Base(path)
+		title := strings.TrimSuffix(base, filepath.Ext(base))
 		content, err := os.ReadFile(path)
 		if err != nil {
 			m.logger.Warn("knowledge baseFilesfailed", zap.String("path", path), zap.Error(err))
@@ -557,6 +558,7 @@ func (m *Manager) UpdateItem(id, category, title, content string) (*KnowledgeIte
 	if err != nil {
 		return nil, fmt.Errorf("updateKnowledgefailed: %w", err)
 	}
+	_, _ = m.db.Exec("DELETE FROM knowledge_fts WHERE item_id = ?", id)
 	_, err = m.db.Exec("DELETE FROM knowledge_embeddings WHERE item_id = ?", id)
 	if err != nil {
 		m.logger.Warn("deletefailed", zap.Error(err))
@@ -722,4 +724,56 @@ func (m *Manager) DeleteRetrievalLog(id string) error {
 	}
 
 	return nil
+}
+
+// ingestibleKnowledgeExts are the text-based file types the knowledge loader
+// ingests from the knowledge base directory. (PDF/HTML extraction and a live
+// file watcher are planned extensions.)
+var ingestibleKnowledgeExts = map[string]bool{
+	".md": true, ".markdown": true, ".txt": true, ".text": true,
+	".json": true, ".yaml": true, ".yml": true, ".csv": true,
+}
+
+// isIngestibleKnowledgeFile reports whether path is a supported knowledge file.
+func isIngestibleKnowledgeFile(path string) bool {
+	ext := strings.ToLower(filepath.Ext(path))
+	return ingestibleKnowledgeExts[ext]
+}
+
+// GetRetrievalAnalytics summarizes retrieval-log activity: total queries, the
+// zero-hit rate (queries that returned nothing — candidate knowledge gaps), and
+// the most frequent queries. Supports the knowledge analytics view (T2-P5).
+func (m *Manager) GetRetrievalAnalytics(topN int) (map[string]interface{}, error) {
+	if topN <= 0 {
+		topN = 10
+	}
+	var total, zeroHit int
+	_ = m.db.QueryRow("SELECT COUNT(*) FROM knowledge_retrieval_logs").Scan(&total)
+	_ = m.db.QueryRow("SELECT COUNT(*) FROM knowledge_retrieval_logs WHERE retrieved_items IS NULL OR TRIM(retrieved_items)='' OR retrieved_items='[]'").Scan(&zeroHit)
+
+	type qc struct {
+		Query string `json:"query"`
+		Count int    `json:"count"`
+	}
+	topQueries := []qc{}
+	rows, err := m.db.Query("SELECT query, COUNT(*) c FROM knowledge_retrieval_logs GROUP BY query ORDER BY c DESC LIMIT ?", topN)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var q qc
+			if err := rows.Scan(&q.Query, &q.Count); err == nil {
+				topQueries = append(topQueries, q)
+			}
+		}
+	}
+	zeroHitRate := 0.0
+	if total > 0 {
+		zeroHitRate = float64(zeroHit) / float64(total)
+	}
+	return map[string]interface{}{
+		"total_queries": total,
+		"zero_hit":      zeroHit,
+		"zero_hit_rate": zeroHitRate,
+		"top_queries":   topQueries,
+	}, nil
 }

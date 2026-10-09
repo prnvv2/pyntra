@@ -130,6 +130,10 @@ func (s *SQLiteIndexer) Store(ctx context.Context, docs []*schema.Document, opts
 		if err != nil {
 			return nil, fmt.Errorf("sqlite indexer: insert chunk %d: %w", i, err)
 		}
+		// Mirror into the FTS lexical index (best-effort; ignore if FTS5 absent).
+		_, _ = tx.ExecContext(ctx,
+			`INSERT INTO knowledge_fts (chunk_id, item_id, chunk_text) VALUES (?, ?, ?)`,
+			chunkID, itemID, d.Content)
 		ids = append(ids, chunkID)
 	}
 

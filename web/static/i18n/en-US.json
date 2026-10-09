@@ -32,14 +32,17 @@
     "backToDashboard": "Back to dashboard",
     "userMenu": "User menu",
     "version": "Current version",
-    "toggleSidebar": "Collapse/expand sidebar"
+    "toggleSidebar": "Collapse/expand sidebar",
+    "halt": "Halt"
   },
   "login": {
     "title": "Sign in to Pyntra",
-    "subtitle": "Enter the access password from config",
+    "subtitle": "Security as a Service",
     "passwordLabel": "Password",
     "passwordPlaceholder": "Enter password",
-    "submit": "Sign in"
+    "submit": "Sign in",
+    "emailLabel": "Work email",
+    "sso": "Sign in with SSO"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -106,7 +109,12 @@
     "toUse": "To use",
     "active": "Active",
     "highFreq": "High frequency",
-    "noCallData": "No call data"
+    "noCallData": "No call data",
+    "engineProvider": "Provider",
+    "engineModel": "Model",
+    "engineMode": "Agent mode",
+    "engineContext": "Context",
+    "recentActivity": "Recent activity"
   },
   "chat": {
     "newChat": "New chat",
@@ -1245,7 +1253,11 @@
     "testing": "Testing connection...",
     "testSuccess": "Connection successful",
     "testFailed": "Connection failed",
-    "testError": "Test error"
+    "testError": "Test error",
+    "fetchModels": "Fetch models",
+    "apiKeyOptionalLocal": "Not required for local servers — any placeholder works.",
+    "selectModel": "Select a discovered model…",
+    "noModelsFound": "No models found at this endpoint"
   },
   "settingsTerminal": {
     "title": "Terminal",
@@ -1579,5 +1591,9 @@
     "pageOf": "Page {{page}} / {{total}}",
     "nextPage": "Next",
     "lastPage": "Last"
+  },
+  "palette": {
+    "placeholder": "Jump to a page…",
+    "noResults": "No matches"
   }
 }

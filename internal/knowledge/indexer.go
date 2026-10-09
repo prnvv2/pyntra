@@ -134,6 +134,7 @@ func (idx *Indexer) IndexItem(ctx context.Context, itemID string) error {
 	if _, err := idx.db.Exec("DELETE FROM knowledge_embeddings WHERE item_id = ?", itemID); err != nil {
 		return fmt.Errorf("deletefailed:%w", err)
 	}
+	_, _ = idx.db.Exec("DELETE FROM knowledge_fts WHERE item_id = ?", itemID)
 
 	body := strings.TrimSpace(content)
 	if idx.indexingCfg != nil && idx.indexingCfg.PreferSourceFile && strings.TrimSpace(filePath) != "" && idx.fileLoader != nil {

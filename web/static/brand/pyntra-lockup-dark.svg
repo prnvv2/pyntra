@@ -1,0 +1,6 @@
+<svg width="300" height="64" viewBox="0 0 300 64" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Pyntra">
+  <!-- Horizontal lockup, for dark backgrounds. Wordmark font: Sora 600 -->
+  <path d="M18 10 V54 M34 23 V31" stroke="#DC2626" stroke-width="7.5"/>
+  <path d="M18 14 H34 A13 13 0 0 1 34 40 H26" stroke="#F0575C" stroke-width="7.5" stroke-linejoin="round"/>
+  <text x="72" y="47" fill="#F5F5F5" font-family="Sora, system-ui, sans-serif" font-size="42" font-weight="600" letter-spacing="-1.4">Pyntra</text>
+</svg>
