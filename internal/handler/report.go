@@ -46,9 +46,7 @@ func (h *ReportHandler) GenerateReport(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	sort.SliceStable(findings, func(i, j int) bool {
-		return severityRank(findings[i].Severity) < severityRank(findings[j].Severity)
-	})
+	rankFindings(findings)
 
 	// Engagement context (if active).
 	eng, _ := h.db.GetActiveEngagement()
@@ -72,6 +70,52 @@ func (h *ReportHandler) GenerateReport(c *gin.Context) {
 		c.Header("Content-Disposition", "attachment; filename=pyntra-report.md")
 		c.Data(http.StatusOK, "text/markdown; charset=utf-8", []byte(out))
 	}
+}
+
+// rankFindings orders findings for the prioritized report (design §B.6 / P4):
+// highest computed CVSS base score first, then CISA KEV, then EPSS probability,
+// and finally the free-text severity band for findings that carry no score yet.
+func rankFindings(findings []*database.Vulnerability) {
+	sort.SliceStable(findings, func(i, j int) bool {
+		a, b := findings[i], findings[j]
+		if a.CVSSBaseScore != b.CVSSBaseScore {
+			return a.CVSSBaseScore > b.CVSSBaseScore
+		}
+		if a.KEV != b.KEV {
+			return a.KEV // KEV flagged ranks first
+		}
+		if a.EPSSScore != b.EPSSScore {
+			return a.EPSSScore > b.EPSSScore
+		}
+		return severityRank(a.Severity) < severityRank(b.Severity)
+	})
+}
+
+// titleCase upper-cases the first rune of a lower-cased string (ASCII severity
+// bands only), avoiding the deprecated strings.Title.
+func titleCase(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	if s == "" {
+		return ""
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+// cvssLabel renders a compact "7.8 (High) CVSS:3.1" style label, or "" when the
+// finding has no computed score.
+func cvssLabel(f *database.Vulnerability) string {
+	if f.CVSSBaseScore <= 0 && f.CVSSVector == "" {
+		return ""
+	}
+	ver := f.CVSSVersion
+	if ver == "" {
+		ver = "3.1"
+	}
+	sev := f.CVSSSeverity
+	if sev == "" {
+		sev = titleCase(f.Severity)
+	}
+	return fmt.Sprintf("%.1f (%s) · CVSS v%s", f.CVSSBaseScore, sev, ver)
 }
 
 func sevLine(counts map[string]int) string {
@@ -107,6 +151,24 @@ func renderReportMarkdown(title string, eng *database.Engagement, findings []*da
 		}
 		if f.Type != "" {
 			fmt.Fprintf(&b, "- **Type:** %s\n", f.Type)
+		}
+		if label := cvssLabel(f); label != "" {
+			fmt.Fprintf(&b, "- **CVSS:** %s\n", label)
+			if f.CVSSVector != "" {
+				fmt.Fprintf(&b, "- **CVSS vector:** `%s`\n", f.CVSSVector)
+			}
+		}
+		if len(f.CVEIDs) > 0 {
+			fmt.Fprintf(&b, "- **CVE:** %s\n", strings.Join(f.CVEIDs, ", "))
+		}
+		if len(f.CWEIDs) > 0 {
+			fmt.Fprintf(&b, "- **CWE:** %s\n", strings.Join(f.CWEIDs, ", "))
+		}
+		if f.KEV {
+			b.WriteString("- **CISA KEV:** ⚠ known-exploited\n")
+		}
+		if f.EPSSScore > 0 {
+			fmt.Fprintf(&b, "- **EPSS:** %.2f%%\n", f.EPSSScore*100)
 		}
 		fmt.Fprintf(&b, "- **Status:** %s\n\n", f.Status)
 		if f.Description != "" {
@@ -162,7 +224,25 @@ pre{background:#f6f7f9;border:1px solid #e4e8ee;border-radius:6px;padding:.75rem
 		if f.Type != "" {
 			fmt.Fprintf(&b, "<strong>Type:</strong> %s &nbsp; ", e(f.Type))
 		}
+		if label := cvssLabel(f); label != "" {
+			fmt.Fprintf(&b, "<strong>CVSS:</strong> %s &nbsp; ", e(label))
+		}
+		if len(f.CVEIDs) > 0 {
+			fmt.Fprintf(&b, "<strong>CVE:</strong> %s &nbsp; ", e(strings.Join(f.CVEIDs, ", ")))
+		}
+		if len(f.CWEIDs) > 0 {
+			fmt.Fprintf(&b, "<strong>CWE:</strong> %s &nbsp; ", e(strings.Join(f.CWEIDs, ", ")))
+		}
+		if f.KEV {
+			b.WriteString("<strong style=\"color:#b4232a\">CISA KEV</strong> &nbsp; ")
+		}
+		if f.EPSSScore > 0 {
+			fmt.Fprintf(&b, "<strong>EPSS:</strong> %.2f%% &nbsp; ", f.EPSSScore*100)
+		}
 		fmt.Fprintf(&b, "<strong>Status:</strong> %s</p>", e(f.Status))
+		if f.CVSSVector != "" {
+			fmt.Fprintf(&b, "<p class=\"meta\"><code>%s</code></p>", e(f.CVSSVector))
+		}
 		if f.Description != "" {
 			fmt.Fprintf(&b, "<p>%s</p>", e(f.Description))
 		}

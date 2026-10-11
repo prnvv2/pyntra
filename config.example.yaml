@@ -68,6 +68,7 @@ agent:
   large_result_threshold: 102400 # Large result threshold (bytes), default 50KB, automatically saved to storage if exceeded
   result_storage_dir: tmp # Result storage directory, large results will be saved here
   tool_timeout_minutes: 30 # Maximum tool execution time per call (minutes), auto-terminate on timeout; 0 means no limit (not recommended, prone to long hangs)
+  max_parallel_tools: 4 # When the model emits several tool calls in one turn, run up to this many concurrently (bounded semaphore). 1 preserves the legacy serial behavior; default 4, max 16.
   # system_prompt_path: prompts/single-react.md # Optional: single agent system prompt file (relative to config file location); replaces built-in prompt when non-empty and readable
 # Multi-Agent (CloudWeGo Eino DeepAgent, coexists with single Agent /api/agent-loop above)
 # Depends on pulling from go.mod; if download fails, set: go env -w GOPROXY=https://proxy.golang.org,direct
@@ -106,6 +107,37 @@ multi_agent:
     deep_output_key: "" # non-empty: write final assistant output to adk session key (Deep and Supervisor main agents); empty means don't write
     deep_model_retry_max_retries: 0 # >0: framework-level max retries when ChatModel call fails (Deep and Supervisor main); 0: no retry
     task_tool_description_prefix: "" # non-empty: only Deep's task tool uses custom description prefix, appended with sub-agent name at runtime; empty uses Eino default generation logic
+  # Concurrent breadth+depth fan-out mode (request orchestration: "fanout").
+  # A fast recon pass emits a structured asset inventory, then one depth agent per
+  # asset runs under a bounded, per-host rate-limited worker pool; findings fan in
+  # for CVE/CWE/CVSS enrichment and cross-asset correlation.
+  fanout:
+    enabled: true
+    max_parallel_assets: 5 # hard concurrency cap on simultaneous depth agents
+    per_host_rate_limit_rps: 2 # ROE-safe aggregate requests/second per target host (prevents accidental DoS / WAF trips)
+    asset_depth_max_iterations: 60 # per-depth-agent iteration budget (independent of the global agent.max_iterations)
+    recon_role: Information-Collection # role used for the breadth/recon pass
+    depth_role_map: # asset type -> depth role
+      web: Web-Application-Scanning
+      host: Penetration-Testing
+      cloud: Cloud-Security-Audit
+      api: API-Security-Testing
+# CVE / CWE / CVSS finding enrichment. The CVSS score is always computed in code
+# from a vector (never a number the LLM guesses); CVSS works fully offline, and
+# CVE lookups degrade gracefully when offline or disabled.
+enrichment:
+  cvss:
+    default_version: "3.1" # "3.1" (recommended) or "4.0" (approximate)
+  cve:
+    enabled: true
+    source: nvd # nvd | local_mirror | off
+    nvd_api_key: ${NVD_API_KEY} # optional; raises the NVD rate limit
+    local_mirror_path: "" # dir of <CVE-ID>.json NVD records for air-gapped runs (source: local_mirror)
+    cache_ttl_hours: 168 # cached CVE freshness window (default 1 week)
+  cwe:
+    map_file: knowledge_base/cwe_map.yaml # seeded vulnerability-type -> CWE table
+  epss: { enabled: false } # FIRST EPSS exploit-probability enrichment (optional)
+  kev: { enabled: true } # CISA Known Exploited Vulnerabilities flagging
 # Database Configuration
 database:
   path: data/conversations.db # SQLite database file path, used to store conversation history and messages

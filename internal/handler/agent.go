@@ -19,8 +19,10 @@ import (
 	"pyntra/internal/agent"
 	"pyntra/internal/config"
 	"pyntra/internal/database"
+	"pyntra/internal/enrich"
 	"pyntra/internal/mcp/builtin"
 	"pyntra/internal/multiagent"
+	"pyntra/internal/security"
 
 	"github.com/gin-gonic/gin"
 	"github.com/robfig/cron/v3"
@@ -121,10 +123,19 @@ type AgentHandler struct {
 		LogRetrieval(conversationID, messageID, query, riskType string, retrievedItems []string) error
 	}
 	agentsMarkdownDir string // multi-agent: Markdown sub-Agent directory (absolute path, empty means not merging from disk)
+	executor *security.Executor // for fanout per-host rate limiting
+	enricher *enrich.Enricher   // for fanout fan-in enrichment
 	batchCronParser cron.Parser
 	batchRunnerMu sync.Mutex
 	batchRunning map[string]struct{}
 }
+
+// SetExecutor wires the security executor (used by fanout mode to install a
+// per-host rate limiter during a run).
+func (h *AgentHandler) SetExecutor(e *security.Executor) { h.executor = e }
+
+// SetEnricher wires the CVE/CWE/CVSS enricher used by fanout fan-in.
+func (h *AgentHandler) SetEnricher(e *enrich.Enricher) { h.enricher = e }
 
 // NewAgentHandler create new Agent handler
 func NewAgentHandler(agent *agent.Agent, db *database.DB, cfg *config.Config, logger *zap.Logger) *AgentHandler {

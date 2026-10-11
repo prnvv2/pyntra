@@ -141,20 +141,26 @@ func (h *AgentHandler) MultiAgentLoopStream(c *gin.Context) {
 	go sseKeepalive(c, stopKeepalive, &sseWriteMu)
 	defer close(stopKeepalive)
 
-	result, runErr := multiagent.RunDeepAgent(
-		taskCtx,
-		h.config,
-		&h.config.MultiAgent,
-		h.agent,
-		h.logger,
-		conversationID,
-		prep.FinalMessage,
-		prep.History,
-		prep.RoleTools,
-		progressCallback,
-		h.agentsMarkdownDir,
-		strings.TrimSpace(req.Orchestration),
-	)
+	var result *multiagent.RunResult
+	var runErr error
+	if isFanoutOrchestration(req.Orchestration) {
+		result, runErr = h.runFanout(taskCtx, conversationID, prep.FinalMessage, prep.History, prep.RoleTools, progressCallback)
+	} else {
+		result, runErr = multiagent.RunDeepAgent(
+			taskCtx,
+			h.config,
+			&h.config.MultiAgent,
+			h.agent,
+			h.logger,
+			conversationID,
+			prep.FinalMessage,
+			prep.History,
+			prep.RoleTools,
+			progressCallback,
+			h.agentsMarkdownDir,
+			strings.TrimSpace(req.Orchestration),
+		)
+	}
 
 	if runErr != nil {
 		cause := context.Cause(baseCtx)
@@ -212,7 +218,11 @@ func (h *AgentHandler) MultiAgentLoopStream(c *gin.Context) {
 
 	effectiveOrch := config.NormalizeMultiAgentOrchestration(h.config.MultiAgent.Orchestration)
 	if o := strings.TrimSpace(req.Orchestration); o != "" {
-		effectiveOrch = config.NormalizeMultiAgentOrchestration(o)
+		if isFanoutOrchestration(o) {
+			effectiveOrch = "fanout"
+		} else {
+			effectiveOrch = config.NormalizeMultiAgentOrchestration(o)
+		}
 	}
 	sendEvent("response", result.Response, map[string]interface{}{
 		"mcpExecutionIds": result.MCPExecutionIDs,
@@ -243,20 +253,26 @@ func (h *AgentHandler) MultiAgentLoop(c *gin.Context) {
 		return
 	}
 
-	result, runErr := multiagent.RunDeepAgent(
-		c.Request.Context(),
-		h.config,
-		&h.config.MultiAgent,
-		h.agent,
-		h.logger,
-		prep.ConversationID,
-		prep.FinalMessage,
-		prep.History,
-		prep.RoleTools,
-		nil,
-		h.agentsMarkdownDir,
-		strings.TrimSpace(req.Orchestration),
-	)
+	var result *multiagent.RunResult
+	var runErr error
+	if isFanoutOrchestration(req.Orchestration) {
+		result, runErr = h.runFanout(c.Request.Context(), prep.ConversationID, prep.FinalMessage, prep.History, prep.RoleTools, nil)
+	} else {
+		result, runErr = multiagent.RunDeepAgent(
+			c.Request.Context(),
+			h.config,
+			&h.config.MultiAgent,
+			h.agent,
+			h.logger,
+			prep.ConversationID,
+			prep.FinalMessage,
+			prep.History,
+			prep.RoleTools,
+			nil,
+			h.agentsMarkdownDir,
+			strings.TrimSpace(req.Orchestration),
+		)
+	}
 	if runErr != nil {
 		h.logger.Error("Eino DeepAgent execution failed", zap.Error(runErr))
 		errMsg := "execution failed: " + runErr.Error()
