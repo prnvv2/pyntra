@@ -26,6 +26,20 @@ func NewDB(dbPath string, logger *zap.Logger) (*DB, error) {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
+	// Harden SQLite for concurrent writers (fanout mode, design §A.3): WAL allows
+	// concurrent readers alongside a writer, and busy_timeout makes a contended
+	// writer wait-and-retry instead of failing fast with "database is locked".
+	// These are applied explicitly so behavior does not depend on DSN parsing.
+	for _, pragma := range []string{
+		"PRAGMA journal_mode=WAL;",
+		"PRAGMA busy_timeout=5000;",
+		"PRAGMA foreign_keys=ON;",
+	} {
+		if _, err := db.Exec(pragma); err != nil {
+			logger.Warn("failed to apply sqlite pragma", zap.String("pragma", pragma), zap.Error(err))
+		}
+	}
+
 	database := &DB{
 		DB:     db,
 		logger: logger,
@@ -200,6 +214,24 @@ func (db *DB) initTables() error {
 		FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
 	);`
 
+	// Create CVE cache table (local, reproducible, offline-friendly enrichment cache)
+	createCVECacheTable := `
+	CREATE TABLE IF NOT EXISTS cve_cache (
+		cve_id TEXT PRIMARY KEY,
+		description TEXT,
+		cvss_version TEXT,
+		cvss_vector TEXT,
+		cvss_score REAL,
+		cwe_ids TEXT,
+		epss_score REAL,
+		epss_percentile REAL,
+		kev INTEGER NOT NULL DEFAULT 0,
+		published DATETIME,
+		modified DATETIME,
+		source TEXT,
+		fetched_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+	);`
+
 	// Create batch task queue table
 	createBatchTaskQueuesTable := `
 	CREATE TABLE IF NOT EXISTS batch_task_queues (
@@ -281,6 +313,8 @@ func (db *DB) initTables() error {
 	CREATE INDEX IF NOT EXISTS idx_vulnerabilities_severity ON vulnerabilities(severity);
 	CREATE INDEX IF NOT EXISTS idx_vulnerabilities_status ON vulnerabilities(status);
 	CREATE INDEX IF NOT EXISTS idx_vulnerabilities_created_at ON vulnerabilities(created_at);
+	CREATE INDEX IF NOT EXISTS idx_vulnerabilities_cvss_base_score ON vulnerabilities(cvss_base_score);
+	CREATE INDEX IF NOT EXISTS idx_cve_cache_fetched_at ON cve_cache(fetched_at);
 	CREATE INDEX IF NOT EXISTS idx_batch_tasks_queue_id ON batch_tasks(queue_id);
 	CREATE INDEX IF NOT EXISTS idx_batch_task_queues_created_at ON batch_task_queues(created_at);
 	CREATE INDEX IF NOT EXISTS idx_batch_task_queues_title ON batch_task_queues(title);
@@ -336,6 +370,10 @@ func (db *DB) initTables() error {
 		return fmt.Errorf("failed to create vulnerabilities table: %w", err)
 	}
 
+	if _, err := db.Exec(createCVECacheTable); err != nil {
+		return fmt.Errorf("failed to create cve_cache table: %w", err)
+	}
+
 	if _, err := db.Exec(createBatchTaskQueuesTable); err != nil {
 		return fmt.Errorf("failed to create batch_task_queues table: %w", err)
 	}
@@ -377,11 +415,59 @@ func (db *DB) initTables() error {
 		// Don't return error, allow continued operation
 	}
 
+	if err := db.migrateVulnerabilitiesTable(); err != nil {
+		db.logger.Warn("failed to migrate vulnerabilities table", zap.Error(err))
+		// Don't return error, allow continued operation
+	}
+
 	if _, err := db.Exec(createIndexes); err != nil {
 		return fmt.Errorf("failed to create indexes: %w", err)
 	}
 
 	db.logger.Info("database tables initialized successfully")
+	return nil
+}
+
+// addColumnIfMissing adds a column to a table when it does not already exist,
+// following the project's pragma_table_info + ALTER TABLE migration idiom. It is
+// tolerant of "duplicate column"/"already exists" races so it is safe to call on
+// every startup.
+func (db *DB) addColumnIfMissing(table, column, definition string) {
+	var count int
+	err := db.QueryRow(
+		"SELECT COUNT(*) FROM pragma_table_info(?) WHERE name=?", table, column,
+	).Scan(&count)
+	if err == nil && count > 0 {
+		return // already present
+	}
+	alter := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", table, column, definition)
+	if _, addErr := db.Exec(alter); addErr != nil {
+		errMsg := strings.ToLower(addErr.Error())
+		if !strings.Contains(errMsg, "duplicate column") && !strings.Contains(errMsg, "already exists") {
+			db.logger.Warn("failed to add column",
+				zap.String("table", table), zap.String("column", column), zap.Error(addErr))
+		}
+	}
+}
+
+// migrateVulnerabilitiesTable adds the CVE/CWE/CVSS enrichment columns to the
+// vulnerabilities table. See docs/DESIGN-concurrent-orchestration-and-cve-cvss.md
+// §B.2. Each column is nullable/defaulted so existing rows migrate cleanly.
+func (db *DB) migrateVulnerabilitiesTable() error {
+	cols := []struct{ name, def string }{
+		{"cve_ids", "TEXT"},          // JSON array, e.g. ["CVE-2021-44228"]
+		{"cwe_ids", "TEXT"},          // JSON array, e.g. ["CWE-89"]
+		{"cvss_version", "TEXT"},     // 3.1 / 4.0
+		{"cvss_vector", "TEXT"},      // full base-metric vector string
+		{"cvss_base_score", "REAL"},  // 0.0-10.0, computed in code
+		{"cvss_severity", "TEXT"},    // derived band
+		{"epss_score", "REAL"},       // optional, 0-1
+		{"epss_percentile", "REAL"},  // optional
+		{"kev", "INTEGER DEFAULT 0"}, // CISA Known-Exploited flag
+	}
+	for _, c := range cols {
+		db.addColumnIfMissing("vulnerabilities", c.name, c.def)
+	}
 	return nil
 }
 

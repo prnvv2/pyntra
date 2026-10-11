@@ -32,6 +32,69 @@ type Config struct {
 	SkillsDir   string                `yaml:"skills_dir,omitempty" json:"skills_dir,omitempty"` // Skills configuration file directory
 	AgentsDir   string                `yaml:"agents_dir,omitempty" json:"agents_dir,omitempty"` // Multi-agent sub-Agent Markdown definition directory (*.md, YAML front matter)
 	MultiAgent  MultiAgentConfig      `yaml:"multi_agent,omitempty" json:"multi_agent,omitempty"`
+	Enrichment  EnrichmentConfig      `yaml:"enrichment,omitempty" json:"enrichment,omitempty"` // CVE/CWE/CVSS finding enrichment
+}
+
+// EnrichmentConfig controls CVE/CWE/CVSS enrichment of findings
+// (see docs/DESIGN-concurrent-orchestration-and-cve-cvss.md Part B).
+type EnrichmentConfig struct {
+	CVSS CVSSEnrichConfig `yaml:"cvss,omitempty" json:"cvss,omitempty"`
+	CVE  CVEEnrichConfig  `yaml:"cve,omitempty" json:"cve,omitempty"`
+	CWE  CWEEnrichConfig  `yaml:"cwe,omitempty" json:"cwe,omitempty"`
+	EPSS ToggleConfig     `yaml:"epss,omitempty" json:"epss,omitempty"`
+	KEV  ToggleConfig     `yaml:"kev,omitempty" json:"kev,omitempty"`
+}
+
+type CVSSEnrichConfig struct {
+	DefaultVersion string `yaml:"default_version,omitempty" json:"default_version,omitempty"` // "3.1" (default) | "4.0"
+}
+
+type CVEEnrichConfig struct {
+	Enabled         bool   `yaml:"enabled" json:"enabled"`
+	Source          string `yaml:"source,omitempty" json:"source,omitempty"` // nvd | local_mirror | off
+	NVDAPIKey       string `yaml:"nvd_api_key,omitempty" json:"nvd_api_key,omitempty"`
+	LocalMirrorPath string `yaml:"local_mirror_path,omitempty" json:"local_mirror_path,omitempty"`
+	CacheTTLHours   int    `yaml:"cache_ttl_hours,omitempty" json:"cache_ttl_hours,omitempty"`
+}
+
+type CWEEnrichConfig struct {
+	MapFile string `yaml:"map_file,omitempty" json:"map_file,omitempty"`
+}
+
+// ToggleConfig is a simple enabled/disabled block used by EPSS and KEV.
+type ToggleConfig struct {
+	Enabled bool `yaml:"enabled" json:"enabled"`
+}
+
+// CVSSDefaultVersionEffective returns the configured CVSS version, defaulting to 3.1.
+func (e EnrichmentConfig) CVSSDefaultVersionEffective() string {
+	if e.CVSS.DefaultVersion == "4.0" {
+		return "4.0"
+	}
+	return "3.1"
+}
+
+// CVESourceEffective returns the CVE source, defaulting to "nvd" when enabled.
+func (e EnrichmentConfig) CVESourceEffective() string {
+	switch e.CVE.Source {
+	case "local_mirror":
+		return "local_mirror"
+	case "off", "":
+		if e.CVE.Enabled {
+			return "nvd"
+		}
+		return "off"
+	default:
+		return e.CVE.Source
+	}
+}
+
+// CVECacheTTLHoursEffective defaults to one week.
+func (e EnrichmentConfig) CVECacheTTLHoursEffective() int {
+	if e.CVE.CacheTTLHours <= 0 {
+		return 168
+	}
+	return e.CVE.CacheTTLHours
 }
 
 // MultiAgentConfig multi-agent orchestration based on CloudWeGo Eino adk/prebuilt (deep | plan_execute | supervisor, coexists with single Agent /agent-loop).
@@ -57,6 +120,68 @@ type MultiAgentConfig struct {
 	EinoSkills MultiAgentEinoSkillsConfig `yaml:"eino_skills,omitempty" json:"eino_skills,omitempty"`
 	// EinoMiddleware wires optional ADK middleware (patchtoolcalls, toolsearch, plantask, reduction) and Deep extras.
 	EinoMiddleware MultiAgentEinoMiddlewareConfig `yaml:"eino_middleware,omitempty" json:"eino_middleware,omitempty"`
+	// Fanout configures the concurrent breadth+depth orchestration mode (agent_mode: "fanout").
+	Fanout FanoutConfig `yaml:"fanout,omitempty" json:"fanout,omitempty"`
+}
+
+// FanoutConfig controls the concurrent fan-out orchestrator
+// (see docs/DESIGN-concurrent-orchestration-and-cve-cvss.md Part A).
+type FanoutConfig struct {
+	Enabled               bool              `yaml:"enabled" json:"enabled"`
+	MaxParallelAssets     int               `yaml:"max_parallel_assets,omitempty" json:"max_parallel_assets,omitempty"`         // hard concurrency cap
+	PerHostRateLimitRPS   float64           `yaml:"per_host_rate_limit_rps,omitempty" json:"per_host_rate_limit_rps,omitempty"` // ROE-safe aggregate load per host
+	AssetDepthMaxIters    int               `yaml:"asset_depth_max_iterations,omitempty" json:"asset_depth_max_iterations,omitempty"`
+	ReconRole             string            `yaml:"recon_role,omitempty" json:"recon_role,omitempty"`
+	DepthRoleMap          map[string]string `yaml:"depth_role_map,omitempty" json:"depth_role_map,omitempty"` // asset type -> role
+}
+
+// MaxParallelAssetsEffective defaults the concurrency cap to 5.
+func (f FanoutConfig) MaxParallelAssetsEffective() int {
+	if f.MaxParallelAssets <= 0 {
+		return 5
+	}
+	return f.MaxParallelAssets
+}
+
+// PerHostRateLimitRPSEffective defaults aggregate per-host load to 2 rps.
+func (f FanoutConfig) PerHostRateLimitRPSEffective() float64 {
+	if f.PerHostRateLimitRPS <= 0 {
+		return 2
+	}
+	return f.PerHostRateLimitRPS
+}
+
+// AssetDepthMaxItersEffective defaults each depth agent's budget to 60 iterations.
+func (f FanoutConfig) AssetDepthMaxItersEffective() int {
+	if f.AssetDepthMaxIters <= 0 {
+		return 60
+	}
+	return f.AssetDepthMaxIters
+}
+
+// ReconRoleEffective defaults the breadth/recon role.
+func (f FanoutConfig) ReconRoleEffective() string {
+	if f.ReconRole == "" {
+		return "Information-Collection"
+	}
+	return f.ReconRole
+}
+
+// DepthRoleFor selects a depth role for an asset type, with sensible fallbacks.
+func (f FanoutConfig) DepthRoleFor(assetType string) string {
+	if r, ok := f.DepthRoleMap[strings.ToLower(assetType)]; ok && r != "" {
+		return r
+	}
+	switch strings.ToLower(assetType) {
+	case "web":
+		return "Web-Application-Scanning"
+	case "cloud":
+		return "Cloud-Security-Audit"
+	case "api":
+		return "API-Security-Testing"
+	default:
+		return "Penetration-Testing"
+	}
 }
 
 // MultiAgentEinoMiddlewareConfig optional Eino ADK middleware and Deep / supervisor tuning.
@@ -228,6 +353,23 @@ type AgentConfig struct {
 	ToolTimeoutMinutes   int    `yaml:"tool_timeout_minutes" json:"tool_timeout_minutes"`     // Maximum duration for single tool execution (minutes); auto-terminates on timeout to prevent prolonged hanging; 0 means no limit (not recommended)
 	// SystemPromptPath Single-agent system prompt Markdown/text file path (relative to config.yaml directory, or absolute writable path). When non-empty and readable, replaces built-in single-agent prompt; leave empty to use built-in.
 	SystemPromptPath string `yaml:"system_prompt_path,omitempty" json:"system_prompt_path,omitempty"`
+	// MaxParallelTools caps how many tool calls emitted in a single model turn run
+	// concurrently (design Part A / P2). 1 (or 0) preserves the legacy serial
+	// behavior; higher values speed up multi-tool turns under a bounded semaphore.
+	MaxParallelTools int `yaml:"max_parallel_tools,omitempty" json:"max_parallel_tools,omitempty"`
+}
+
+// MaxParallelToolsEffective defaults the per-turn tool concurrency to 4, clamped
+// to a sane ceiling.
+func (a AgentConfig) MaxParallelToolsEffective() int {
+	n := a.MaxParallelTools
+	if n <= 0 {
+		return 4
+	}
+	if n > 16 {
+		return 16
+	}
+	return n
 }
 
 type AuthConfig struct {

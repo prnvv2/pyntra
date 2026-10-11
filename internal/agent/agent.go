@@ -295,9 +295,14 @@ func (a *Agent) AgentLoopWithProgress(ctx context.Context, userInput string, his
 	a.mu.Lock()
 	a.currentConversationID = conversationID
 	a.mu.Unlock()
+	// progressMu serializes callback invocations so progress events remain safe
+	// to emit from concurrent tool-execution goroutines (P2).
+	var progressMu sync.Mutex
 	sendProgress := func(eventType, message string, data interface{}) {
 		if callback != nil {
+			progressMu.Lock()
 			callback(eventType, message, data)
+			progressMu.Unlock()
 		}
 	}
 
@@ -557,77 +562,110 @@ func (a *Agent) AgentLoopWithProgress(ctx context.Context, userInput string, his
 				"count": len(choice.Message.ToolCalls),
 				"iteration": i + 1,
 			})
-			for idx, toolCall := range choice.Message.ToolCalls {
+			// Execute the turn's tool calls under a bounded semaphore (P2). When
+			// the model emits several calls at once they run concurrently instead
+			// of one-at-a-time; results are collected and appended to the message
+			// history in the original order so the transcript stays deterministic
+			// and each tool reply still follows its tool_call. A cap of 1 restores
+			// the legacy serial behavior.
+			type toolOutcome struct {
+				message ChatMessage
+				execID  string
+				isError bool
+			}
+			toolCalls := choice.Message.ToolCalls
+			outcomes := make([]toolOutcome, len(toolCalls))
+
+			maxParallel := 1
+			if a.agentConfig != nil {
+				maxParallel = a.agentConfig.MaxParallelToolsEffective()
+			}
+			if maxParallel > len(toolCalls) {
+				maxParallel = len(toolCalls)
+			}
+			if maxParallel < 1 {
+				maxParallel = 1
+			}
+
+			sem := make(chan struct{}, maxParallel)
+			var wg sync.WaitGroup
+			total := len(toolCalls)
+			for idx, toolCall := range toolCalls {
+				idx, toolCall := idx, toolCall
 				toolArgsJSON, _ := json.Marshal(toolCall.Function.Arguments)
 				sendProgress("tool_call", fmt.Sprintf("calltool: %s", toolCall.Function.Name), map[string]interface{}{
-					"toolName": toolCall.Function.Name,
-					"arguments": string(toolArgsJSON),
+					"toolName":     toolCall.Function.Name,
+					"arguments":    string(toolArgsJSON),
 					"argumentsObj": toolCall.Function.Arguments,
-					"toolCallId": toolCall.ID,
-					"index": idx + 1,
-					"total": len(choice.Message.ToolCalls),
-					"iteration": i + 1,
+					"toolCallId":   toolCall.ID,
+					"index":        idx + 1,
+					"total":        total,
+					"iteration":    i + 1,
 				})
-				toolCtx := context.WithValue(ctx, security.ToolOutputCallbackCtxKey, security.ToolOutputCallback(func(chunk string) {
-					if strings.TrimSpace(chunk) == "" {
+
+				wg.Add(1)
+				sem <- struct{}{}
+				go func() {
+					defer wg.Done()
+					defer func() { <-sem }()
+
+					toolCtx := context.WithValue(ctx, security.ToolOutputCallbackCtxKey, security.ToolOutputCallback(func(chunk string) {
+						if strings.TrimSpace(chunk) == "" {
+							return
+						}
+						sendProgress("tool_result_delta", chunk, map[string]interface{}{
+							"toolName":   toolCall.Function.Name,
+							"toolCallId": toolCall.ID,
+							"index":      idx + 1,
+							"total":      total,
+							"iteration":  i + 1,
+						})
+					}))
+
+					execResult, err := a.executeToolViaMCP(toolCtx, toolCall.Function.Name, toolCall.Function.Arguments)
+					if err != nil {
+						errorMsg := a.formatToolError(toolCall.Function.Name, toolCall.Function.Arguments, err)
+						outcomes[idx] = toolOutcome{
+							message: ChatMessage{Role: "tool", ToolCallID: toolCall.ID, Content: errorMsg},
+							isError: true,
+						}
+						sendProgress("tool_result", fmt.Sprintf("tool %s failed", toolCall.Function.Name), map[string]interface{}{
+							"toolName":   toolCall.Function.Name,
+							"success":    false,
+							"isError":    true,
+							"error":      err.Error(),
+							"toolCallId": toolCall.ID,
+							"index":      idx + 1,
+							"total":      total,
+							"iteration":  i + 1,
+						})
+						a.logger.Warn("toolfailed,backerror",
+							zap.String("tool", toolCall.Function.Name),
+							zap.Error(err),
+						)
 						return
 					}
-					sendProgress("tool_result_delta", chunk, map[string]interface{}{
-						"toolName": toolCall.Function.Name,
-						"toolCallId": toolCall.ID,
-						"index": idx + 1,
-						"total": len(choice.Message.ToolCalls),
-						"iteration": i + 1,
-					})
-				}))
 
-				execResult, err := a.executeToolViaMCP(toolCtx, toolCall.Function.Name, toolCall.Function.Arguments)
-				if err != nil {
-					errorMsg := a.formatToolError(toolCall.Function.Name, toolCall.Function.Arguments, err)
-					messages = append(messages, ChatMessage{
-						Role: "tool",
-						ToolCallID: toolCall.ID,
-						Content: errorMsg,
-					})
-					sendProgress("tool_result", fmt.Sprintf("tool %s failed", toolCall.Function.Name), map[string]interface{}{
-						"toolName": toolCall.Function.Name,
-						"success": false,
-						"isError": true,
-						"error": err.Error(),
-						"toolCallId": toolCall.ID,
-						"index": idx + 1,
-						"total": len(choice.Message.ToolCalls),
-						"iteration": i + 1,
-					})
-
-					a.logger.Warn("toolfailed,backerror",
-						zap.String("tool", toolCall.Function.Name),
-						zap.Error(err),
-					)
-				} else {
-					messages = append(messages, ChatMessage{
-						Role: "tool",
-						ToolCallID: toolCall.ID,
-						Content: execResult.Result,
-					})
-					if execResult.ExecutionID != "" {
-						result.MCPExecutionIDs = append(result.MCPExecutionIDs, execResult.ExecutionID)
+					outcomes[idx] = toolOutcome{
+						message: ChatMessage{Role: "tool", ToolCallID: toolCall.ID, Content: execResult.Result},
+						execID:  execResult.ExecutionID,
+						isError: execResult.IsError,
 					}
 					resultPreview := execResult.Result
 					if len(resultPreview) > 200 {
 						resultPreview = resultPreview[:200] + "..."
 					}
 					sendProgress("tool_result", fmt.Sprintf("tool %s completed", toolCall.Function.Name), map[string]interface{}{
-						"toolName": toolCall.Function.Name,
-						"success": !execResult.IsError,
-						"isError": execResult.IsError,
-						"result": execResult.Result,
+						"toolName":      toolCall.Function.Name,
+						"success":       !execResult.IsError,
+						"isError":       execResult.IsError,
+						"result":        execResult.Result,
 						"resultPreview": resultPreview,
-						"executionId": execResult.ExecutionID,
-						"toolCallId": toolCall.ID,
-						"index": idx + 1,
-						"total": len(choice.Message.ToolCalls),
-						"iteration": i + 1,
+						"executionId":   execResult.ExecutionID,
+						"toolCallId":    toolCall.ID,
+						"index":         idx + 1,
+						"total":         total,
+						"iteration":     i + 1,
 					})
 					if execResult.IsError {
 						a.logger.Warn("toolbackerrorresult,",
@@ -635,6 +673,16 @@ func (a *Agent) AgentLoopWithProgress(ctx context.Context, userInput string, his
 							zap.String("result", execResult.Result),
 						)
 					}
+				}()
+			}
+			wg.Wait()
+
+			// Append tool replies in the original call order, preserving the
+			// deterministic transcript the model expects.
+			for _, oc := range outcomes {
+				messages = append(messages, oc.message)
+				if oc.execID != "" {
+					result.MCPExecutionIDs = append(result.MCPExecutionIDs, oc.execID)
 				}
 			}
 			if isLastIteration {

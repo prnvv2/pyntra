@@ -14,6 +14,7 @@ import (
 	"pyntra/internal/bot"
 	"pyntra/internal/config"
 	"pyntra/internal/database"
+	"pyntra/internal/enrich"
 	"pyntra/internal/handler"
 	"pyntra/internal/knowledge"
 	"pyntra/internal/logger"
@@ -68,7 +69,14 @@ func New(cfg *config.Config, log *logger.Logger) (*App, error) {
 	mcpServer := mcp.NewServerWithStorage(log.Logger, db)
 	executor := security.NewExecutor(&cfg.Security, mcpServer, log.Logger)
 	executor.RegisterTools(mcpServer)
-	registerVulnerabilityTool(mcpServer, db, log.Logger)
+	// Finding enricher: CVE/CWE/CVSS scoring applied at write-time so every
+	// recorded finding lands already scored (design Part B / §B.6).
+	findingEnricher := enrich.NewFromConfig(
+		cfg.Enrichment,
+		enrich.DBCacheAdapter{DB: db, TTL: time.Duration(cfg.Enrichment.CVECacheTTLHoursEffective()) * time.Hour},
+		log.Logger,
+	)
+	registerVulnerabilityTool(mcpServer, db, findingEnricher, log.Logger)
 
 	if cfg.Auth.GeneratedPassword != "" {
 		config.PrintGeneratedPasswordWarning(cfg.Auth.GeneratedPassword, cfg.Auth.GeneratedPasswordPersisted, cfg.Auth.GeneratedPasswordPersistErr)
@@ -254,6 +262,8 @@ func New(cfg *config.Config, log *logger.Logger) (*App, error) {
 	log.Logger.Info("multi-agent Markdown Agent directory", zap.String("agentsDir", agentsDir))
 	agentHandler := handler.NewAgentHandler(agent, db, cfg, log.Logger)
 	agentHandler.SetAgentsMarkdownDir(agentsDir)
+	agentHandler.SetExecutor(executor)
+	agentHandler.SetEnricher(findingEnricher)
 	if knowledgeManager != nil {
 		agentHandler.SetKnowledgeManager(knowledgeManager)
 	}
@@ -265,6 +275,7 @@ func New(cfg *config.Config, log *logger.Logger) (*App, error) {
 	vulnerabilityHandler := handler.NewVulnerabilityHandler(db, log.Logger)
 	engagementHandler := handler.NewEngagementHandler(db, log.Logger)
 	reportHandler := handler.NewReportHandler(db, log.Logger)
+	vulnerabilityHandler.SetEnricher(findingEnricher)
 	attackCoverageHandler := handler.NewAttackCoverageHandler(db, log.Logger)
 	// Install the engagement scope guard so out-of-scope tool calls are blocked
 	// (no-op until an engagement with a non-empty scope is made active).
@@ -304,7 +315,7 @@ func New(cfg *config.Config, log *logger.Logger) (*App, error) {
 	app.botManager = bot.NewManager(agentHandler, log.Logger)
 	app.botManager.Start(cfg.Bots)
 	vulnerabilityRegistrar := func() error {
-		registerVulnerabilityTool(mcpServer, db, log.Logger)
+		registerVulnerabilityTool(mcpServer, db, findingEnricher, log.Logger)
 		return nil
 	}
 	configHandler.SetVulnerabilityToolRegistrar(vulnerabilityRegistrar)
@@ -697,6 +708,7 @@ func setupRoutes(
 		protected.GET("/vulnerabilities/stats", vulnerabilityHandler.GetVulnerabilityStats)
 		protected.GET("/vulnerabilities/:id", vulnerabilityHandler.GetVulnerability)
 		protected.POST("/vulnerabilities", vulnerabilityHandler.CreateVulnerability)
+		protected.POST("/vulnerabilities/reenrich", vulnerabilityHandler.ReEnrichVulnerabilities)
 		protected.PUT("/vulnerabilities/:id", vulnerabilityHandler.UpdateVulnerability)
 		protected.DELETE("/vulnerabilities/:id", vulnerabilityHandler.DeleteVulnerability)
 		protected.GET("/webshell/connections", webshellHandler.ListConnections)
@@ -754,7 +766,7 @@ func setupRoutes(
 		c.HTML(http.StatusOK, "index.html", gin.H{"Version": version})
 	})
 }
-func registerVulnerabilityTool(mcpServer *mcp.Server, db *database.DB, logger *zap.Logger) {
+func registerVulnerabilityTool(mcpServer *mcp.Server, db *database.DB, enricher *enrich.Enricher, logger *zap.Logger) {
 	tool := mcp.Tool{
 		Name: builtin.ToolRecordVulnerability,
 		Description: "recordVulnerabilitiesdetailsVulnerability Management.Vulnerabilities,toolrecordVulnerabilities,title//////.",
@@ -794,6 +806,14 @@ func registerVulnerabilityTool(mcpServer *mcp.Server, db *database.DB, logger *z
 				"recommendation": map[string]interface{}{
 					"type": "string",
 					"description": "",
+				},
+				"cve_ids": map[string]interface{}{
+					"type": "string",
+					"description": "Optional. Known CVE id(s), comma-separated (e.g. CVE-2021-44228). Used to look up an authoritative CVSS vector and CWE mapping.",
+				},
+				"cvss_vector": map[string]interface{}{
+					"type": "string",
+					"description": "Optional. A CVSS v3.1 base-metric vector when no CVE applies (e.g. CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H). The score is computed from this vector in code; never provide a numeric score.",
 				},
 			},
 			"required": []string{"title", "severity"},
@@ -899,6 +919,25 @@ func registerVulnerabilityTool(mcpServer *mcp.Server, db *database.DB, logger *z
 			Recommendation: recommendation,
 		}
 
+		// Seed any explicit references the agent supplied, then enrich. The
+		// enricher computes CVSS from a vector (never a guessed number) and maps
+		// CVE/CWE so the finding lands already scored and prioritized.
+		if raw, ok := args["cve_ids"].(string); ok && raw != "" {
+			for _, part := range strings.Split(raw, ",") {
+				if p := strings.TrimSpace(part); p != "" {
+					vuln.CVEIDs = append(vuln.CVEIDs, p)
+				}
+			}
+		}
+		if v, ok := args["cvss_vector"].(string); ok {
+			vuln.CVSSVector = strings.TrimSpace(v)
+		}
+		if enricher != nil {
+			if err := enricher.Enrich(ctx, vuln); err != nil {
+				logger.Warn("finding enrichment failed", zap.Error(err))
+			}
+		}
+
 		created, err := db.CreateVulnerability(vuln)
 		if err != nil {
 			logger.Error("recordVulnerabilitiesfailed", zap.Error(err))
@@ -920,11 +959,22 @@ func registerVulnerabilityTool(mcpServer *mcp.Server, db *database.DB, logger *z
 			zap.String("conversation_id", conversationID),
 		)
 
+		scoreLine := ""
+		if created.CVSSBaseScore > 0 || created.CVSSVector != "" {
+			scoreLine = fmt.Sprintf("\nCVSS: %.1f (%s)", created.CVSSBaseScore, created.CVSSSeverity)
+			if len(created.CVEIDs) > 0 {
+				scoreLine += "\nCVE: " + strings.Join(created.CVEIDs, ", ")
+			}
+			if len(created.CWEIDs) > 0 {
+				scoreLine += "\nCWE: " + strings.Join(created.CWEIDs, ", ")
+			}
+		}
+
 		return &mcp.ToolResult{
 			Content: []mcp.Content{
 				{
 					Type: "text",
-					Text: fmt.Sprintf("Vulnerabilitiessuccessfulrecord!\n\nVulnerabilitiesID: %s\ntitle: %s\n: %s\nstatus: %s\n\nVulnerability ManagementpageVulnerabilities.", created.ID, created.Title, created.Severity, created.Status),
+					Text: fmt.Sprintf("Vulnerabilitiessuccessfulrecord!\n\nVulnerabilitiesID: %s\ntitle: %s\n: %s\nstatus: %s%s\n\nVulnerability ManagementpageVulnerabilities.", created.ID, created.Title, created.Severity, created.Status, scoreLine),
 				},
 			},
 			IsError: false,

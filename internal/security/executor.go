@@ -33,7 +33,21 @@ type Executor struct {
 	logger *zap.Logger
 	resultStorage ResultStorage
 	scopeGuard ScopeGuard
+	rateLimiter RateLimiter
 	halted atomic.Bool
+}
+
+// RateLimiter throttles tool calls by target host. A nil limiter (the default)
+// imposes no limit. Implemented by security.HostRateLimiter for fanout mode.
+type RateLimiter interface {
+	Wait(ctx context.Context, host string) error
+}
+
+// SetRateLimiter installs (or clears, with nil) the per-host rate limiter.
+func (e *Executor) SetRateLimiter(rl RateLimiter) {
+	if e != nil {
+		e.rateLimiter = rl
+	}
 }
 
 // SetHalted engages or releases the global kill-switch. While halted, every tool
@@ -73,6 +87,21 @@ type ResultStorage interface {
 	GetResultPath(executionID string) string
 	DeleteResult(executionID string) error
 }
+// targetHostFromArgs extracts a host key from the common target-bearing tool
+// arguments so the rate limiter can key its bucket. Returns "" when none found.
+func targetHostFromArgs(args map[string]interface{}) string {
+	for _, key := range []string{"target", "url", "host", "domain", "ip", "hostname", "address"} {
+		if v, ok := args[key]; ok {
+			if s, ok := v.(string); ok && strings.TrimSpace(s) != "" {
+				if h := HostKey(s); h != "" {
+					return h
+				}
+			}
+		}
+	}
+	return ""
+}
+
 func NewExecutor(cfg *config.SecurityConfig, mcpServer *mcp.Server, logger *zap.Logger) *Executor {
 	executor := &Executor{
 		config: cfg,
@@ -120,6 +149,18 @@ func (e *Executor) ExecuteTool(ctx context.Context, toolName string, args map[st
 				Content: []mcp.Content{{Type: "text", Text: "BLOCKED by engagement scope: " + err.Error()}},
 				IsError: true,
 			}, nil
+		}
+	}
+	// Per-host rate limiting (fanout mode): cap aggregate load so concurrent
+	// depth agents can't become an accidental DoS. Honors ctx cancellation.
+	if e.rateLimiter != nil {
+		if host := targetHostFromArgs(args); host != "" {
+			if err := e.rateLimiter.Wait(ctx, host); err != nil {
+				return &mcp.ToolResult{
+					Content: []mcp.Content{{Type: "text", Text: "rate limit wait interrupted: " + err.Error()}},
+					IsError: true,
+				}, nil
+			}
 		}
 	}
 	if toolName == "exec" {
